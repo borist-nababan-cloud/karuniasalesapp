@@ -1,0 +1,39 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Debug files (err-notes, strapi-logs, sample-data, etc)
+*-notes.md
+*-logs.md
+sample-data.md
+
+node_modules
+dist
+dist-ssr
+*.local
+.env
+.env.production
+.env.development
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*.md
+!DEPLOY_COOLIFY.md
+!README.md
+!CLAUDE.md
+!USER_GUIDE.md
+!docs/
+!docs/**
