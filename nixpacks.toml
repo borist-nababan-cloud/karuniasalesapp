@@ -1,0 +1,11 @@
+[phases.build]
+cmd = "npm run build"
+
+[phases.install]
+cmd = "npm install"
+
+[phases.start]
+cmd = "npm run preview -- --host"
+
+[variables]
+NODE_ENV = "production"
