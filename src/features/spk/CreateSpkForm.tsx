@@ -100,8 +100,8 @@ export default function CreateSpkForm() {
             // A. Fetch Static Data & Profile
             try {
                 const [typeRes, colorRes, profileRes] = await Promise.all([
-                    api.get('/vehicle-types'),
-                    api.get('/colors'),
+                    api.get('/vehicle-types', { params: { 'pagination[pageSize]': 500 } }),
+                    api.get('/colors', { params: { 'pagination[pageSize]': 500 } }),
                     api.get('/sales-profiles', { params: { filters: { email: { $eq: user.email } }, populate: '*' } })
                 ]);
 
