@@ -10,6 +10,14 @@ export default defineConfig({
   server: {
     port: 5555,
     strictPort: true,
+    proxy: {
+      '/api': {
+        target: 'https://karuniastrapi.nababancloud.com',
+        changeOrigin: true,
+        secure: true,
+        rewrite: (path) => path, // Keep the path as-is
+      },
+    },
   },
   preview: {
     port: 5555,

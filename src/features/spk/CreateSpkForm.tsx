@@ -26,6 +26,8 @@ export default function CreateSpkForm() {
 
     // Data Sources
     const [vehicleTypes, setVehicleTypes] = useState<any[]>([]);
+    const [vehicleGroups, setVehicleGroups] = useState<any[]>([]); // NEW
+    const [selectedGroup, setSelectedGroup] = useState<string>("all"); // NEW
     const [colors, setColors] = useState<any[]>([]);
     const [salesProfileId, setSalesProfileId] = useState<number | null>(null);
     const [nextSpkNumber, setNextSpkNumber] = useState<string>("Loading...");
@@ -99,16 +101,19 @@ export default function CreateSpkForm() {
 
             // A. Fetch Static Data & Profile
             try {
-                const [typeRes, colorRes, profileRes] = await Promise.all([
-                    api.get('/vehicle-types', { params: { 'pagination[pageSize]': 500 } }),
+                const [typeRes, groupRes, colorRes, profileRes] = await Promise.all([
+                    api.get('/vehicle-types', { params: { 'pagination[pageSize]': 500, populate: '*' } }), // Populated for relations
+                    api.get('/vehicle-groups', { params: { 'pagination[pageSize]': 100 } }), // Fetch Groups
                     api.get('/colors', { params: { 'pagination[pageSize]': 500 } }),
                     api.get('/sales-profiles', { params: { filters: { email: { $eq: user.email } }, populate: '*' } })
                 ]);
 
                 const vTypes = typeRes.data?.data || [];
+                const vGroups = groupRes.data?.data || [];
                 const colors = colorRes.data?.data || [];
 
                 setVehicleTypes(vTypes);
+                setVehicleGroups(vGroups);
                 setColors(colors);
 
                 if (profileRes.data?.data?.length > 0) {
@@ -507,6 +512,31 @@ export default function CreateSpkForm() {
                         <CardHeader><CardTitle>B. Unit Details</CardTitle></CardHeader>
                         <CardContent className="space-y-4">
                             <div className="space-y-2">
+                                <Label>Vehicle Group (Filter)</Label>
+                                <Select
+                                    value={selectedGroup}
+                                    onValueChange={(val) => {
+                                        setSelectedGroup(val);
+                                        // Optional: Clear selected vehicle if it doesn't match the new group?
+                                        // For now let's just let it stay, or user can change it.
+                                        setFormData(prev => ({ ...prev, vehicleType: null })); // Reset type on group change to avoid mismatch
+                                    }}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="All Groups" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">All Groups</SelectItem>
+                                        {vehicleGroups.map((g: any) => (
+                                            <SelectItem key={g.id} value={g.id.toString()}>
+                                                {g.attributes?.name || g.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div className="space-y-2">
                                 <Label>Vehicle Type</Label>
                                 <Select
                                     value={formData.vehicleType?.toString() || ''}
@@ -524,11 +554,29 @@ export default function CreateSpkForm() {
                                         </SelectValue>
                                     </SelectTrigger>
                                     <SelectContent>
-                                        {vehicleTypes.map((v: any) => (
-                                            <SelectItem key={v.id} value={v.id.toString()}>
-                                                {v.attributes?.name || v.name}
-                                            </SelectItem>
-                                        ))}
+                                        {(() => {
+                                            const filtered = vehicleTypes
+                                                .filter((v: any) => {
+                                                    if (!selectedGroup || selectedGroup === "all") return true;
+
+                                                    // Get the selected group name from vehicleGroups
+                                                    const selectedGroupObj = vehicleGroups.find((g: any) => g.id.toString() === selectedGroup);
+                                                    const selectedGroupName = selectedGroupObj?.name || selectedGroupObj?.attributes?.name;
+
+                                                    // Get the vehicle's group name (direct string field, not a relation)
+                                                    const vehicleGroupName = v.vehicle_group || v.attributes?.vehicle_group;
+
+                                                    // Match by name
+                                                    return vehicleGroupName === selectedGroupName;
+                                                });
+
+                                            return filtered;
+                                        })()
+                                            .map((v: any) => (
+                                                <SelectItem key={v.id} value={v.id.toString()}>
+                                                    {v.attributes?.name || v.name}
+                                                </SelectItem>
+                                            ))}
                                     </SelectContent>
                                 </Select>
                             </div>

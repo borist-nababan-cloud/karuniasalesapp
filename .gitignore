@@ -16,9 +16,13 @@ node_modules
 dist
 dist-ssr
 *.local
+
+# Environment files (sensitive data)
 .env
 .env.production
 .env.development
+.env.local
+*.sql
 
 # Editor directories and files
 .vscode/*
@@ -30,10 +34,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Documentation (keeping only essential files in root)
 *.md
-!DEPLOY_COOLIFY.md
 !README.md
 !CLAUDE.md
-!USER_GUIDE.md
-!docs/
-!docs/**
+# Ignore all docs directory (contains sensitive/internal documentation)
+docs/
+
