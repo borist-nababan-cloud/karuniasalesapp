@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { api } from '@/lib/axios';
+import { supabase } from '@/lib/supabase';
 import { ENV } from '@/config/env';
 import boxLogo from '@/assets/box-logo.jpg';
 
@@ -33,60 +33,59 @@ export default function LoginPage() {
         setIsLoading(true);
         setError(null);
         try {
-            // Mock login for now if API fails, or use real API
-            const response = await api.post('/auth/local', {
-                identifier: data.identifier,
+            // Login with Supabase
+            const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+                email: data.identifier,
                 password: data.password,
             });
+            
+            if (authError) throw authError;
 
-            const { user, jwt } = response.data;
+            const user = authData.user;
+            const session = authData.session;
 
-            // Check Sales Profile Status
-            try {
-                const profileRes = await api.get('/sales-profiles', {
-                    params: {
-                        filters: { email: { $eq: user.email } }
-                    },
-                    headers: {
-                        Authorization: `Bearer ${jwt}`,
-                    },
-                });
+            if (!user || !session) throw new Error("Login failed to return session");
 
-                if (profileRes.data?.data?.length > 0) {
-                    const profileData = profileRes.data.data[0];
-                    const profile = profileData.attributes ? { ...profileData.attributes, id: profileData.id } : profileData;
+            // Check User Profile Status
+            const { data: profile, error: profileError } = await supabase
+                .from('user_profiles')
+                .select('*')
+                .eq('id', user.id)
+                .single();
 
-                    if (profile.blocked) {
-                        alert("Access Denied: You are blocked by admin.");
-                        return;
-                    }
-
-                    // Handle potential string vs boolean mismatch
-                    const isApproved = profile.approved === true || profile.approved === 'true';
-
-
-                    login(user, jwt, isApproved);
-
-                    if (isApproved) {
-                        navigate('/dashboard');
-                    } else {
-                        navigate('/profile');
-                    }
-                } else {
-                    // No profile found (legacy user?), default to unapproved/profile
-                    login(user, jwt, false);
-                    navigate('/profile');
-                }
-            } catch (profileErr) {
-                console.error("Profile check failed", profileErr);
+            if (profileError || !profile) {
+                console.error("Profile check failed", profileError);
                 // Fallback
-                login(user, jwt, false);
+                login({
+                    id: user.id,
+                    email: user.email!,
+                    username: user.email!
+                }, session.access_token, false);
+                navigate('/profile');
+                return;
+            }
+
+            if (profile.blocked) {
+                alert("Access Denied: You are blocked by admin.");
+                return;
+            }
+
+            const isApproved = profile.confirmed === true;
+
+            login({
+                id: user.id,
+                email: user.email!,
+                username: profile.username || user.email!
+            }, session.access_token, isApproved);
+
+            if (isApproved) {
+                navigate('/dashboard');
+            } else {
                 navigate('/profile');
             }
         } catch (err: any) {
             console.error(err);
-
-            setError(err.response?.data?.error?.message || 'Invalid credentials');
+            setError(err.message || 'Invalid credentials');
         } finally {
             setIsLoading(false);
         }

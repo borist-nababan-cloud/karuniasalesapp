@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch'; // Import Switch
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { api } from '@/lib/axios';
+import { supabase } from '@/lib/supabase';
 
 // Mock Branch Location (Jakarta)
 const BRANCH_LOCATION = {
@@ -63,17 +63,13 @@ export default function AttendanceCard({ profileId, initialStatus, isBlocked }: 
         }
     }, [position]);
 
-    // Update Location Helper
     const updateLocation = useCallback(async (currentPos: { latitude: number; longitude: number }) => {
         if (!currentPos) return;
         try {
-
-            await api.put(`/sales-profiles/${profileId}`, {
-                data: {
-                    location: currentPos // JSON field
-                }
-            });
-
+            await supabase
+                .from('user_profiles')
+                .update({ location: currentPos })
+                .eq('id', profileId);
         } catch (error) {
             console.error("Failed to sync location", error);
         }
@@ -103,11 +99,10 @@ export default function AttendanceCard({ profileId, initialStatus, isBlocked }: 
         setLoading(true);
 
         try {
-            await api.put(`/sales-profiles/${profileId}`, {
-                data: {
-                    online_stat: checked
-                }
-            });
+            await supabase
+                .from('user_profiles')
+                .update({ online_stat: checked })
+                .eq('id', profileId);
 
             setIsCheckedIn(checked);
 
@@ -117,8 +112,6 @@ export default function AttendanceCard({ profileId, initialStatus, isBlocked }: 
             }
         } catch (error) {
             console.error('Status update failed', error);
-            // Revert switch if failed
-            // setIsCheckedIn(!checked);
             alert('Failed to update status.');
         } finally {
             setLoading(false);

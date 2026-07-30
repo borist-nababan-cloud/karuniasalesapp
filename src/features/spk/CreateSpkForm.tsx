@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuthStore } from "@/stores/authStore";
-import { api } from '@/lib/axios';
-import { getStrapiMedia } from '@/lib/url';
+import { supabase } from '@/lib/supabase';
+import { getSupabaseMedia } from '@/lib/url';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,7 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function CreateSpkForm() {
     const navigate = useNavigate();
-    const { id: editId } = useParams(); // Get ID from ID
+    const { id: editId } = useParams();
     const user = useAuthStore((state) => state.user);
     const [loading, setLoading] = useState(false);
     const [initialLoading, setInitialLoading] = useState(true);
@@ -26,15 +26,13 @@ export default function CreateSpkForm() {
 
     // Data Sources
     const [vehicleTypes, setVehicleTypes] = useState<any[]>([]);
-    const [vehicleGroups, setVehicleGroups] = useState<any[]>([]); // NEW
-    const [selectedGroup, setSelectedGroup] = useState<string>("all"); // NEW
+    const [vehicleGroups, setVehicleGroups] = useState<any[]>([]);
+    const [selectedGroup, setSelectedGroup] = useState<string>("all");
     const [colors, setColors] = useState<any[]>([]);
-    const [salesProfileId, setSalesProfileId] = useState<number | null>(null);
     const [nextSpkNumber, setNextSpkNumber] = useState<string>("Loading...");
 
     // Form State
     const [formData, setFormData] = useState({
-        // Root / Customer
         namaCustomer: '',
         pekerjaanCustomer: '',
         emailCustomer: '',
@@ -42,23 +40,19 @@ export default function CreateSpkForm() {
         alamatCustomer: '',
         noTeleponCustomer: '',
 
-        // Paper Info (Mapped to detailInfo in backend)
         namaBpkbStnk: '',
         alamatBpkbStnk: '',
         kotaBpkbStnk: '',
 
-        // Unit Info - Store ID only for relations within components
-        // Strapi v5 component relations only accept { id: number } during create/update
-        vehicleType: null as number | null,
+        vehicleType: null as number | string | null,
         hargaOtr: 0,
         noMesin: '',
         noRangka: '',
-        color: null as number | null,
+        color: null as number | string | null,
         tahun: new Date().getFullYear().toString(),
         bonus: '',
         lainLain: '',
 
-        // Payment Info
         caraBayar: 'TUNAI',
         angsuran: 0,
         tandaJadi: 0,
@@ -68,18 +62,11 @@ export default function CreateSpkForm() {
         pembelianVia: '',
         keterangan: '',
 
-        // Media IDs
-        ktpId: null as number | null,
-        kkId: null as number | null,
-        selfieId: null as number | null,
-
-        // Media URLs for Preview
         ktpUrl: '',
         kkUrl: '',
         selfieUrl: '',
     });
 
-    // Helper: Generate SPK Number
     const generateSpkNumber = () => {
         const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
         let randomCode = '';
@@ -94,122 +81,89 @@ export default function CreateSpkForm() {
         return `${randomCode}/SPK/${romanMonth}/${year}`;
     };
 
-    // 1. Fetch Initial Data
     useEffect(() => {
         const initData = async () => {
             if (!user) return;
 
-            // A. Fetch Static Data & Profile
             try {
-                const [typeRes, groupRes, colorRes, profileRes] = await Promise.all([
-                    api.get('/vehicle-types', { params: { 'pagination[pageSize]': 500, populate: '*' } }), // Populated for relations
-                    api.get('/vehicle-groups', { params: { 'pagination[pageSize]': 100 } }), // Fetch Groups
-                    api.get('/colors', { params: { 'pagination[pageSize]': 500 } }),
-                    api.get('/sales-profiles', { params: { filters: { email: { $eq: user.email } }, populate: '*' } })
+                const [typeRes, groupRes, colorRes] = await Promise.all([
+                    supabase.from('vehicle_types').select('*'),
+                    supabase.from('vehicle_groups').select('*'),
+                    supabase.from('colors').select('*')
                 ]);
 
-                const vTypes = typeRes.data?.data || [];
-                const vGroups = groupRes.data?.data || [];
-                const colors = colorRes.data?.data || [];
+                setVehicleTypes(typeRes.data || []);
+                setVehicleGroups(groupRes.data || []);
+                setColors(colorRes.data || []);
 
-                setVehicleTypes(vTypes);
-                setVehicleGroups(vGroups);
-                setColors(colors);
-
-                if (profileRes.data?.data?.length > 0) {
-                    const profile = profileRes.data.data[0];
-                    setSalesProfileId(profile.id);
-                } else {
-                    console.warn("Sales Profile not found for", user.email);
-                }
             } catch (error) {
                 console.error("Static data init failed", error);
             }
 
-            // B. Fetch SPK Data (If Edit) or Setup New
             if (editId) {
                 try {
+                    const { data: spk, error } = await supabase
+                        .from('spks')
+                        .select('*')
+                        .eq('id', editId)
+                        .single();
 
-                    // Use Filter instead of ID lookup to avoid 500
-                    const spkRes = await api.get('/spks', {
-                        params: {
-                            filters: { documentId: { $eq: editId } },
-                            populate: '*'
-                        }
-                    });
-
-
-                    const spkData = spkRes.data?.data; // Handle { data: [...] }
-                    const spk = Array.isArray(spkData) ? spkData[0] : spkData; // Handle if by accident it returns array
+                    if (error) throw error;
 
                     if (spk) {
-
-                        // Populate Form
-                        setNextSpkNumber(spk.noSPK);
+                        setNextSpkNumber(spk.noSPK || spk.no_spk);
                         setFormData(prev => ({
                             ...prev,
-                            // Root
-                            namaCustomer: spk.namaCustomer || '',
-                            pekerjaanCustomer: spk.pekerjaanCustomer || '',
-                            emailCustomer: spk.emailcustomer || '',
-                            namaDebitur: spk.namaDebitur || '',
-                            alamatCustomer: spk.alamatCustomer || '',
-                            noTeleponCustomer: spk.noTeleponCustomer || '',
+                            namaCustomer: spk.namaCustomer || spk.nama_customer || '',
+                            pekerjaanCustomer: spk.pekerjaanCustomer || spk.pekerjaan_customer || '',
+                            emailCustomer: spk.emailcustomer || spk.email_customer || '',
+                            namaDebitur: spk.namaDebitur || spk.nama_debitur || '',
+                            alamatCustomer: spk.alamatCustomer || spk.alamat_customer || '',
+                            noTeleponCustomer: spk.noTeleponCustomer || spk.no_telepon_customer || '',
 
-                            // Detail Info
-                            namaBpkbStnk: spk.detailInfo?.namaBpkbStnk || '',
-                            alamatBpkbStnk: spk.detailInfo?.alamatBpkbStnk || '',
-                            kotaBpkbStnk: spk.detailInfo?.kotaStnkBpkb || '',
+                            // Handle both component JSONB and flattened structure possibilities
+                            namaBpkbStnk: spk.detailInfo?.namaBpkbStnk || spk.nama_bpkb_stnk || '',
+                            alamatBpkbStnk: spk.detailInfo?.alamatBpkbStnk || spk.alamat_bpkb_stnk || '',
+                            kotaBpkbStnk: spk.detailInfo?.kotaStnkBpkb || spk.kota_bpkb_stnk || '',
 
-                            // Unit Info - Store ID only for relations within components
-                            vehicleType: spk.unitInfo?.vehicleType?.id || null,
-                            hargaOtr: spk.unitInfo?.hargaOtr || 0,
-                            noMesin: spk.unitInfo?.noMesin || '',
-                            noRangka: spk.unitInfo?.noRangka || '',
-                            color: spk.unitInfo?.color?.id || null,
-                            tahun: spk.unitInfo?.tahun || '',
-                            bonus: spk.unitInfo?.bonus || '',
-                            lainLain: spk.unitInfo?.lainLain || '',
+                            vehicleType: spk.vehicle_type_id || spk.unitInfo?.vehicleType?.id || null,
+                            hargaOtr: spk.harga_otr || spk.unitInfo?.hargaOtr || 0,
+                            noMesin: spk.no_mesin || spk.unitInfo?.noMesin || '',
+                            noRangka: spk.no_rangka || spk.unitInfo?.noRangka || '',
+                            color: spk.color_id || spk.unitInfo?.color?.id || null,
+                            tahun: spk.tahun || spk.unitInfo?.tahun || '',
+                            bonus: spk.bonus || spk.unitInfo?.bonus || '',
+                            lainLain: spk.lain_lain || spk.unitInfo?.lainLain || '',
 
-                            // Payment Info
-                            caraBayar: spk.paymentInfo?.caraBayar || 'TUNAI',
-                            angsuran: spk.paymentInfo?.angsuran || 0,
-                            tandaJadi: spk.paymentInfo?.tandaJadi || 0,
-                            tenor: spk.paymentInfo?.tenor || '0',
-                            namaLeasing: spk.paymentInfo?.namaLeasing || '',
-                            dp: spk.paymentInfo?.dp || 0,
-                            pembelianVia: spk.paymentInfo?.pembelianVia || '',
-                            keterangan: spk.paymentInfo?.keterangan || '',
+                            caraBayar: spk.cara_bayar || spk.paymentInfo?.caraBayar || 'TUNAI',
+                            angsuran: spk.angsuran || spk.paymentInfo?.angsuran || 0,
+                            tandaJadi: spk.tanda_jadi || spk.paymentInfo?.tandaJadi || 0,
+                            tenor: spk.tenor || spk.paymentInfo?.tenor || '0',
+                            namaLeasing: spk.nama_leasing || spk.paymentInfo?.namaLeasing || '',
+                            dp: spk.dp || spk.paymentInfo?.dp || 0,
+                            pembelianVia: spk.pembelian_via || spk.paymentInfo?.pembelianVia || '',
+                            keterangan: spk.keterangan || spk.paymentInfo?.keterangan || '',
 
-                            // Media
-                            ktpId: spk.ktpPaspor?.id || null,
-                            ktpUrl: spk.ktpPaspor?.url || '',
-                            kkId: spk.kartuKeluarga?.id || null,
-                            kkUrl: spk.kartuKeluarga?.url || '',
-                            selfieId: spk.selfie?.id || null,
-                            selfieUrl: spk.selfie?.url || '',
+                            ktpUrl: spk.ktp_url || spk.ktpUrl || '',
+                            kkUrl: spk.kk_url || spk.kkUrl || '',
+                            selfieUrl: spk.selfie_url || spk.selfieUrl || '',
                         }));
-                    } else {
-                        console.error("SPK data not found in response");
                     }
                 } catch (err) {
                     console.error("Failed to fetch SPK details", err);
                     alert("Failed to load SPK data.");
                 }
             } else {
-                // Create Mode
                 const newSpk = generateSpkNumber();
                 setNextSpkNumber(newSpk);
                 const saved = localStorage.getItem('spk_draft');
                 if (saved) {
                     const parsed = JSON.parse(saved);
-                    // FIX: Clean up vehicleType and color if they're stored as full objects instead of IDs
-                    const cleanedData = {
+                    setFormData({
                         ...parsed,
                         vehicleType: typeof parsed.vehicleType === 'object' ? parsed.vehicleType?.id || null : parsed.vehicleType,
                         color: typeof parsed.color === 'object' ? parsed.color?.id || null : parsed.color,
-                    };
-                    setFormData(cleanedData);
+                    });
                 }
             }
 
@@ -218,55 +172,42 @@ export default function CreateSpkForm() {
         initData();
     }, [user, editId]);
 
-    // Update Field Helper
     const setField = (field: string, val: any) => {
         setFormData(prev => ({ ...prev, [field]: val }));
     };
 
-    // Price Automator (Only if not editing or explicit user change? simplified to always run for now but check if empty)
     useEffect(() => {
-        if (editId && formData.hargaOtr > 0) return; // Don't overwrite existing price on edit load
+        if (editId && formData.hargaOtr > 0) return;
 
         const vId = formData.vehicleType;
         if (!vId) return;
-        const selectedVehicle = vehicleTypes.find((v: any) => v.id === vId);
+        const selectedVehicle = vehicleTypes.find((v: any) => v.id == vId);
         if (selectedVehicle) {
-            const attr = selectedVehicle.attributes || selectedVehicle;
-            const price = attr.harga_otr || attr.price || 0;
-            // Only autofill if 0
+            const price = selectedVehicle.harga_otr || selectedVehicle.price || 0;
             if (!formData.hargaOtr) {
                 setField('hargaOtr', price);
             }
         }
     }, [formData.vehicleType, vehicleTypes, editId]);
 
-    // Media Upload Logic (Upload on Select)
-    const uploadFileToStrapi = async (file: File, fieldName: 'ktp' | 'kk' | 'selfie') => {
+    const uploadFileToSupabase = async (file: File, fieldName: 'ktp' | 'kk' | 'selfie') => {
         setUploading(true);
         try {
-            const data = new FormData();
-            data.append('files', file);
+            const fileExt = file.name.split('.').pop();
+            const fileName = `${user?.id}-${fieldName}-${Date.now()}.${fileExt}`;
+            const filePath = `uploads/${fileName}`;
 
-            const uploadRes = await api.post('/upload', data, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
+            const { error: uploadError } = await supabase.storage.from('spk-documents').upload(filePath, file);
 
-            if (uploadRes.data && uploadRes.data.length > 0) {
-                const uploadedFile = uploadRes.data[0];
-                const fileId = uploadedFile.id;
-                const fileUrl = uploadedFile.url;
+            if (uploadError) throw uploadError;
 
-                if (fieldName === 'ktp') {
-                    setFormData(prev => ({ ...prev, ktpId: fileId, ktpUrl: fileUrl }));
-                } else if (fieldName === 'kk') {
-                    setFormData(prev => ({ ...prev, kkId: fileId, kkUrl: fileUrl }));
-                } else if (fieldName === 'selfie') {
-                    setFormData(prev => ({ ...prev, selfieId: fileId, selfieUrl: fileUrl }));
-                }
-            }
+            if (fieldName === 'ktp') setFormData(prev => ({ ...prev, ktpUrl: filePath }));
+            else if (fieldName === 'kk') setFormData(prev => ({ ...prev, kkUrl: filePath }));
+            else if (fieldName === 'selfie') setFormData(prev => ({ ...prev, selfieUrl: filePath }));
+
         } catch (error: any) {
             console.error("Upload failed", error);
-            alert(`Upload failed: ${error.response?.data?.error?.message || "Check connection"}`);
+            alert(`Upload failed: ${error.message}`);
         } finally {
             setUploading(false);
             setShowCamera({ isOpen: false, field: null });
@@ -275,10 +216,9 @@ export default function CreateSpkForm() {
 
     const handleMediaSelect = (e: React.ChangeEvent<HTMLInputElement>, fieldName: 'ktp' | 'kk' | 'selfie') => {
         if (!e.target.files || e.target.files.length === 0) return;
-        uploadFileToStrapi(e.target.files[0], fieldName);
+        uploadFileToSupabase(e.target.files[0], fieldName);
     };
 
-    // Navigation Logic
     const nextTab = (target: string) => {
         if (!editId) {
             localStorage.setItem('spk_draft', JSON.stringify(formData));
@@ -287,10 +227,6 @@ export default function CreateSpkForm() {
     };
 
     const handleSubmit = async () => {
-        if (!salesProfileId) {
-            alert("Sales Profile not linked. Please re-login or check your profile connection.");
-            return;
-        }
         if (!formData.vehicleType) {
             alert("Please select a Vehicle Type.");
             return;
@@ -302,39 +238,11 @@ export default function CreateSpkForm() {
 
         setLoading(true);
         try {
-            // Round 19 Fix: Based on actual server error "Invalid key documentId"
-            // 1. Top-level relations (salesProfile, ktpPaspor, kartuKeluarga, selfie) use connect syntax:
-            //    - { connect: [{ id: X }] }
-            // 2. Relations WITHIN components (vehicleType, color in unitInfo) must be { id: number } ONLY:
-            //    - NO documentId field allowed for component-embedded relations!
-            // 3. Components (detailInfo, unitInfo, paymentInfo) don't need their 'id' field when creating
-
-            // Top-level relations use connect syntax
-            const salesProfileConnect = salesProfileId ? { connect: [{ id: salesProfileId }] } : null;
-            const ktpPasporConnect = formData.ktpId ? { connect: [{ id: formData.ktpId }] } : null;
-            const kartuKeluargaConnect = formData.kkId ? { connect: [{ id: formData.kkId }] } : null;
-            const selfieConnect = formData.selfieId ? { connect: [{ id: formData.selfieId }] } : null;
-
-            // FIX: Extract ID from object if vehicleType/color is stored as full object
-            // Handle both: number ID (1) and object format ({id: 1, documentId: '...'})
-            const vehicleTypeId = typeof formData.vehicleType === 'object' && formData.vehicleType !== null
-                ? (formData.vehicleType as { id: number }).id
-                : formData.vehicleType as number;
-            const colorId = typeof formData.color === 'object' && formData.color !== null
-                ? (formData.color as { id: number }).id
-                : formData.color as number;
-
-            // Component-embedded relations: { id: number } ONLY - NO documentId!
-            const vehicleTypeRelation = vehicleTypeId ? { id: Number(vehicleTypeId) } : null;
-            const colorRelation = colorId ? { id: Number(colorId) } : null;
-
-            // Create payload
             const payloadData: any = {
                 noSPK: nextSpkNumber,
-                salesProfile: salesProfileConnect,
+                sales_profile_id: user?.id,
                 tanggal: new Date().toISOString().split('T')[0],
 
-                // Customer & Root
                 namaCustomer: formData.namaCustomer,
                 pekerjaanCustomer: formData.pekerjaanCustomer || '-',
                 emailcustomer: formData.emailCustomer,
@@ -343,98 +251,59 @@ export default function CreateSpkForm() {
                 kotacustomer: formData.kotaBpkbStnk,
                 noTeleponCustomer: formData.noTeleponCustomer,
 
-                // Paper Info (Component)
                 detailInfo: {
                     namaBpkbStnk: formData.namaBpkbStnk,
                     alamatBpkbStnk: formData.alamatBpkbStnk,
                     kotaStnkBpkb: formData.kotaBpkbStnk,
                 },
 
-                // Unit Info (Component) - Relations must be FULL objects with id + documentId
-                unitInfo: {
-                    vehicleType: vehicleTypeRelation,  // Full object: { id, documentId }
-                    hargaOtr: Number(formData.hargaOtr) || 0,
-                    noMesin: formData.noMesin,
-                    noRangka: formData.noRangka,
-                    color: colorRelation,  // Full object: { id, documentId }
-                    tahun: String(formData.tahun || ''),  // FIXED: Database is now VARCHAR, send string
-                    bonus: formData.bonus,
-                    lainLain: formData.lainLain
-                },
+                vehicle_type_id: formData.vehicleType,
+                harga_otr: Number(formData.hargaOtr) || 0,
+                no_mesin: formData.noMesin,
+                no_rangka: formData.noRangka,
+                color_id: formData.color,
+                tahun: String(formData.tahun || ''),
+                bonus: formData.bonus,
+                lain_lain: formData.lainLain,
 
-                // Payment Info (Component)
-                paymentInfo: {
-                    caraBayar: formData.caraBayar,
-                    angsuran: Number(formData.angsuran) || 0,
-                    tandaJadi: Number(formData.tandaJadi) || 0,
-                    tenor: String(formData.tenor || ''),  // FIXED: Database is now VARCHAR, send string
-                    namaLeasing: formData.namaLeasing,
-                    dp: Number(formData.dp) || 0,
-                    pembelianVia: formData.pembelianVia,
-                    keterangan: formData.keterangan
-                },
+                cara_bayar: formData.caraBayar,
+                angsuran: Number(formData.angsuran) || 0,
+                tanda_jadi: Number(formData.tandaJadi) || 0,
+                tenor: String(formData.tenor || ''),
+                nama_leasing: formData.namaLeasing,
+                dp: Number(formData.dp) || 0,
+                pembelian_via: formData.pembelianVia,
+                keterangan: formData.keterangan,
 
-                // Media (Top-level Relations) - Use connect syntax
-                ktpPaspor: ktpPasporConnect,
-                kartuKeluarga: kartuKeluargaConnect,
-                selfie: selfieConnect
+                ktp_url: formData.ktpUrl,
+                kk_url: formData.kkUrl,
+                selfie_url: formData.selfieUrl,
+                
+                finish: false,
+                editable: true
             };
 
-            // PRUNING: Empty Strings & Nulls
-            // 1. Delete Null Relations (top-level)
-            if (!payloadData.salesProfile) delete payloadData.salesProfile;
-            if (!payloadData.ktpPaspor) delete payloadData.ktpPaspor;
-            if (!payloadData.kartuKeluarga) delete payloadData.kartuKeluarga;
-            if (!payloadData.selfie) delete payloadData.selfie;
-
-            // 2. Delete Empty Strings for Optional/Unique Fields
-            if (!payloadData.unitInfo.noMesin) delete payloadData.unitInfo.noMesin;
-            if (!payloadData.unitInfo.noRangka) delete payloadData.unitInfo.noRangka;
-            if (!payloadData.unitInfo.bonus) delete payloadData.unitInfo.bonus;
-            if (!payloadData.unitInfo.lainLain) delete payloadData.unitInfo.lainLain;
-
-            if (!payloadData.paymentInfo.namaLeasing) delete payloadData.paymentInfo.namaLeasing;
-            if (!payloadData.paymentInfo.pembelianVia) delete payloadData.paymentInfo.pembelianVia;
-            if (!payloadData.paymentInfo.keterangan) delete payloadData.paymentInfo.keterangan;
-
-            // SAFETY CHECK: Ensure required relations are present after pruning
-            if (!payloadData.unitInfo.vehicleType || !payloadData.unitInfo.vehicleType.id) {
-                console.error("CRITICAL: vehicleType relation missing or invalid after pruning!");
-                console.error("formData.vehicleType =", formData.vehicleType);
-                console.error("vehicleTypeId =", vehicleTypeId);
-                alert("Vehicle Type relation is missing. Please try selecting the vehicle again.");
-                setLoading(false);
-                return;
-            }
-            if (!payloadData.unitInfo.color || !payloadData.unitInfo.color.id) {
-                console.error("CRITICAL: color relation missing or invalid after pruning!");
-                console.error("formData.color =", formData.color);
-                console.error("colorId =", colorId);
-                alert("Color relation is missing. Please try selecting the color again.");
-                setLoading(false);
-                return;
-            }
-
-            const safePayload = { data: payloadData };
+            // Remove empty strings
+            Object.keys(payloadData).forEach(key => {
+                if (payloadData[key] === '') {
+                    payloadData[key] = null;
+                }
+            });
 
             if (editId) {
-                await api.put(`/spks/${editId}`, safePayload);
+                const { error } = await supabase.from('spks').update(payloadData).eq('id', editId);
+                if (error) throw error;
                 alert("SPK Updated Successfully!");
             } else {
-                await api.post('/spks', safePayload);
+                const { error } = await supabase.from('spks').insert(payloadData);
+                if (error) throw error;
                 localStorage.removeItem('spk_draft');
                 alert("SPK Created Successfully!");
             }
             navigate('/spk');
         } catch (error: any) {
-            // Log error for debugging
-            console.error("SPK Submission Error:", error.response?.data?.error || error.message);
-
-            const status = error.response?.status;
-            const data = error.response?.data;
-            const errorMessage = data?.error?.message || data?.error || JSON.stringify(data || "Unknown error");
-
-            alert(`Error ${status}: ${errorMessage}`);
+            console.error("SPK Submission Error:", error);
+            alert(`Error: ${error.message || "Unknown error"}`);
         } finally {
             setLoading(false);
         }
@@ -517,9 +386,7 @@ export default function CreateSpkForm() {
                                     value={selectedGroup}
                                     onValueChange={(val) => {
                                         setSelectedGroup(val);
-                                        // Optional: Clear selected vehicle if it doesn't match the new group?
-                                        // For now let's just let it stay, or user can change it.
-                                        setFormData(prev => ({ ...prev, vehicleType: null })); // Reset type on group change to avoid mismatch
+                                        setFormData(prev => ({ ...prev, vehicleType: null }));
                                     }}
                                 >
                                     <SelectTrigger>
@@ -529,7 +396,7 @@ export default function CreateSpkForm() {
                                         <SelectItem value="all">All Groups</SelectItem>
                                         {vehicleGroups.map((g: any) => (
                                             <SelectItem key={g.id} value={g.id.toString()}>
-                                                {g.attributes?.name || g.name}
+                                                {g.name}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>
@@ -541,40 +408,24 @@ export default function CreateSpkForm() {
                                 <Select
                                     value={formData.vehicleType?.toString() || ''}
                                     onValueChange={(idStr) => {
-                                        const id = Number(idStr);
-                                        const vehicle = vehicleTypes.find((v: any) => v.id === id);
-                                        if (vehicle) {
-                                            setFormData(prev => ({ ...prev, vehicleType: id }));
-                                        }
+                                        setFormData(prev => ({ ...prev, vehicleType: idStr }));
                                     }}
                                 >
                                     <SelectTrigger>
                                         <SelectValue placeholder="Select Vehicle">
-                                            {formData.vehicleType ? vehicleTypes.find((v: any) => v.id === formData.vehicleType)?.attributes?.name || vehicleTypes.find((v: any) => v.id === formData.vehicleType)?.name : "Select Vehicle"}
+                                            {formData.vehicleType ? vehicleTypes.find((v: any) => v.id == formData.vehicleType)?.name : "Select Vehicle"}
                                         </SelectValue>
                                     </SelectTrigger>
                                     <SelectContent>
-                                        {(() => {
-                                            const filtered = vehicleTypes
-                                                .filter((v: any) => {
-                                                    if (!selectedGroup || selectedGroup === "all") return true;
-
-                                                    // Get the selected group name from vehicleGroups
-                                                    const selectedGroupObj = vehicleGroups.find((g: any) => g.id.toString() === selectedGroup);
-                                                    const selectedGroupName = selectedGroupObj?.name || selectedGroupObj?.attributes?.name;
-
-                                                    // Get the vehicle's group name (direct string field, not a relation)
-                                                    const vehicleGroupName = v.vehicle_group || v.attributes?.vehicle_group;
-
-                                                    // Match by name
-                                                    return vehicleGroupName === selectedGroupName;
-                                                });
-
-                                            return filtered;
-                                        })()
+                                        {vehicleTypes
+                                            .filter((v: any) => {
+                                                if (!selectedGroup || selectedGroup === "all") return true;
+                                                const selectedGroupObj = vehicleGroups.find((g: any) => g.id.toString() === selectedGroup);
+                                                return v.vehicle_group === selectedGroupObj?.name;
+                                            })
                                             .map((v: any) => (
                                                 <SelectItem key={v.id} value={v.id.toString()}>
-                                                    {v.attributes?.name || v.name}
+                                                    {v.name}
                                                 </SelectItem>
                                             ))}
                                     </SelectContent>
@@ -599,22 +450,18 @@ export default function CreateSpkForm() {
                                 <Select
                                     value={formData.color?.toString() || ''}
                                     onValueChange={(idStr) => {
-                                        const id = Number(idStr);
-                                        const color = colors.find((c: any) => c.id === id);
-                                        if (color) {
-                                            setFormData(prev => ({ ...prev, color: id }));
-                                        }
+                                        setFormData(prev => ({ ...prev, color: idStr }));
                                     }}
                                 >
                                     <SelectTrigger>
                                         <SelectValue placeholder="Select Color">
-                                            {formData.color ? colors.find((c: any) => c.id === formData.color)?.attributes?.colorname || colors.find((c: any) => c.id === formData.color)?.colorname || colors.find((c: any) => c.id === formData.color)?.name : "Select Color"}
+                                            {formData.color ? colors.find((c: any) => c.id == formData.color)?.colorname || colors.find((c: any) => c.id == formData.color)?.name : "Select Color"}
                                         </SelectValue>
                                     </SelectTrigger>
                                     <SelectContent>
                                         {colors.map((c: any) => (
                                             <SelectItem key={c.id} value={c.id.toString()}>
-                                                {c.attributes?.colorname || c.colorname || c.name}
+                                                {c.colorname || c.name}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>
@@ -702,35 +549,35 @@ export default function CreateSpkForm() {
                         <CardContent className="space-y-6">
                             {/* KTP */}
                             <div className="space-y-2">
-                                <Label>KTP Image {formData.ktpId && "✅"}</Label>
+                                <Label>KTP Image {formData.ktpUrl && "✅"}</Label>
                                 <div className="flex gap-2">
                                     <Button variant="outline" onClick={() => setShowCamera({ isOpen: true, field: 'ktp' })}>Camera</Button>
                                     <Input type="file" className="hidden" id="ktp-upload" accept="image/*" onChange={e => handleMediaSelect(e, 'ktp')} />
                                     <Button variant="outline" onClick={() => document.getElementById('ktp-upload')?.click()}>Gallery</Button>
                                 </div>
-                                {formData.ktpUrl && <img src={getStrapiMedia(formData.ktpUrl) || ''} className="h-20 w-auto rounded border" />}
+                                {formData.ktpUrl && <img src={getSupabaseMedia(formData.ktpUrl) || ''} className="h-20 w-auto rounded border" />}
                             </div>
 
                             {/* KK */}
                             <div className="space-y-2">
-                                <Label>KK Image {formData.kkId && "✅"}</Label>
+                                <Label>KK Image {formData.kkUrl && "✅"}</Label>
                                 <div className="flex gap-2">
                                     <Button variant="outline" onClick={() => setShowCamera({ isOpen: true, field: 'kk' })}>Camera</Button>
                                     <Input type="file" className="hidden" id="kk-upload" accept="image/*" onChange={e => handleMediaSelect(e, 'kk')} />
                                     <Button variant="outline" onClick={() => document.getElementById('kk-upload')?.click()}>Gallery</Button>
                                 </div>
-                                {formData.kkUrl && <img src={getStrapiMedia(formData.kkUrl) || ''} className="h-20 w-auto rounded border" />}
+                                {formData.kkUrl && <img src={getSupabaseMedia(formData.kkUrl) || ''} className="h-20 w-auto rounded border" />}
                             </div>
 
                             {/* SELFIE */}
                             <div className="space-y-2">
-                                <Label>Selfie with Customer {formData.selfieId && "✅"}</Label>
+                                <Label>Selfie with Customer {formData.selfieUrl && "✅"}</Label>
                                 <div className="flex gap-2">
                                     <Button variant="outline" onClick={() => setShowCamera({ isOpen: true, field: 'selfie' })}>Camera</Button>
                                     <Input type="file" className="hidden" id="selfie-upload" accept="image/*" onChange={e => handleMediaSelect(e, 'selfie')} />
                                     <Button variant="outline" onClick={() => document.getElementById('selfie-upload')?.click()}>Gallery</Button>
                                 </div>
-                                {formData.selfieUrl && <img src={getStrapiMedia(formData.selfieUrl) || ''} className="h-20 w-auto rounded border" />}
+                                {formData.selfieUrl && <img src={getSupabaseMedia(formData.selfieUrl) || ''} className="h-20 w-auto rounded border" />}
                             </div>
                         </CardContent>
                         <CardFooter className="flex gap-2">
@@ -747,7 +594,7 @@ export default function CreateSpkForm() {
             {showCamera.isOpen && (
                 <CameraCapture
                     onCapture={(file) => {
-                        if (showCamera.field) uploadFileToStrapi(file, showCamera.field as any);
+                        if (showCamera.field) uploadFileToSupabase(file, showCamera.field as any);
                     }}
                     onClose={() => setShowCamera({ isOpen: false, field: null })}
                 />

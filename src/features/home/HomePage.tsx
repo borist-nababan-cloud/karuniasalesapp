@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { api } from '@/lib/axios';
+import { supabase } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuthStore } from "@/stores/authStore";
-import { getStrapiMedia } from "@/lib/url";
+import { getSupabaseMedia } from "@/lib/url";
 
 export default function HomePage() {
     const [articles, setArticles] = useState<any[]>([]);
@@ -12,14 +12,14 @@ export default function HomePage() {
     useEffect(() => {
         const fetchArticles = async () => {
             try {
-                const res = await api.get('/articles', {
-                    params: {
-                        sort: ['createdAt:desc'],
-                        'pagination[limit]': 2,
-                        populate: '*' // Get cover image
-                    }
-                });
-                setArticles(res.data?.data || []);
+                const { data, error } = await supabase
+                    .from('articles')
+                    .select('*')
+                    .order('created_at', { ascending: false })
+                    .limit(2);
+                
+                if (error) throw error;
+                setArticles(data || []);
             } catch (err) {
                 console.error("Failed to fetch articles", err);
             } finally {
@@ -31,17 +31,13 @@ export default function HomePage() {
     }, []);
 
     const getImageUrl = (article: any) => {
-        // Try large first, then fallback to others
-        const formats = article.cover?.formats;
-        if (!formats) return article.cover?.url;
-
-        return formats.large?.url || formats.medium?.url || formats.small?.url || article.cover?.url;
+        return article.cover_url || article.coverUrl || article.cover;
     };
 
     return (
         <div className="space-y-6 pb-20">
             <div className="flex flex-col space-y-2">
-                <h1 className="text-2xl font-bold tracking-tight">Welcome, {user?.username}</h1>
+                <h1 className="text-2xl font-bold tracking-tight">Welcome, {user?.user_metadata?.username || user?.email}</h1>
                 <p className="text-muted-foreground">Latest News & Updates</p>
             </div>
 
@@ -51,7 +47,7 @@ export default function HomePage() {
                 <div className="grid gap-6 md:grid-cols-2">
                     {articles.map((article) => {
                         const imageUrl = getImageUrl(article);
-                        const fullImageUrl = getStrapiMedia(imageUrl);
+                        const fullImageUrl = getSupabaseMedia(imageUrl);
 
                         return (
                             <Card key={article.id} className="overflow-hidden">

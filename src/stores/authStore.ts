@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 interface User {
-    id: number;
+    id: string; // UUID from Supabase
     username: string;
     email: string;
     role?: string;
