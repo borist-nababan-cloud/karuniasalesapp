@@ -8,6 +8,7 @@ import ProfilePage from './features/profile/ProfilePage';
 import SpkPage from './features/spk/SpkPage';
 import CreateSpkForm from './features/spk/CreateSpkForm';
 import ProtectedRoute from './components/ProtectedRoute';
+import { SalesGuard } from './components/guards/SalesGuard';
 import HomePage from './features/home/HomePage';
 
 function App() {
@@ -22,7 +23,9 @@ function App() {
           <Route index element={<Navigate to="login" replace />} />
         </Route>
 
-        <Route element={<ProtectedRoute />}>
+        <Route path="/access-denied" element={<div className="p-8 text-center text-red-600 font-bold">Access Denied: You do not have SALES permission.</div>} />
+
+        <Route element={<SalesGuard><ProtectedRoute /></SalesGuard>}>
           <Route element={<MainLayout />}>
             <Route path="/home" element={<HomePage />} />
             <Route path="/dashboard" element={<DashboardPage />} />

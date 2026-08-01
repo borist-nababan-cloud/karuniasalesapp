@@ -6,6 +6,7 @@ interface User {
     username: string;
     email: string;
     role?: string;
+    role_id?: number;
     uid?: string; // Firebase style mock
 }
 

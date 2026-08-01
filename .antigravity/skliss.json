@@ -1,0 +1,7 @@
+{
+  "module": "SalesApp Web",
+  "framework": "React",
+  "shared_logic": "../mobile",
+  "primary_api": "Supabase Client",
+  "features": ["SPK", "Absensi", "Notifications"]
+}

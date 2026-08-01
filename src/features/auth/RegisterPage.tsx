@@ -73,14 +73,11 @@ export default function RegisterPage() {
             }
 
             if (session) {
-                login({
-                    id: user.id,
-                    email: user.email!,
-                    username: data.username
-                }, session.access_token, false);
+                await supabase.auth.signOut();
             }
 
-            navigate('/profile');
+            alert("Registration successful! Your account is pending admin approval.");
+            navigate('/auth/login');
         } catch (err: any) {
             console.error("Registration Error Details:", err);
             setError(err.message || 'Registration failed');

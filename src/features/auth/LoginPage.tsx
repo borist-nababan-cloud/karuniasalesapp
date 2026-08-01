@@ -61,7 +61,8 @@ export default function LoginPage() {
                     email: user.email!,
                     username: user.email!
                 }, session.access_token, false);
-                navigate('/profile');
+                await supabase.auth.signOut();
+                alert("Profile incomplete. Please contact admin.");
                 return;
             }
 
@@ -70,19 +71,20 @@ export default function LoginPage() {
                 return;
             }
 
-            const isApproved = profile.confirmed === true;
+            if (profile.confirmed !== true) {
+                await supabase.auth.signOut();
+                alert("Registration pending: Please wait for an administrator to approve your account.");
+                return;
+            }
 
             login({
                 id: user.id,
                 email: user.email!,
-                username: profile.username || user.email!
-            }, session.access_token, isApproved);
+                username: profile.username || user.email!,
+                role_id: profile.role_id
+            }, session.access_token, true);
 
-            if (isApproved) {
-                navigate('/dashboard');
-            } else {
-                navigate('/profile');
-            }
+            navigate('/dashboard');
         } catch (err: any) {
             console.error(err);
             setError(err.message || 'Invalid credentials');
