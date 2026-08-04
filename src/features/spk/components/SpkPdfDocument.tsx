@@ -2,6 +2,7 @@ import React from 'react';
 import { Page, Text, View, Document, StyleSheet, Image } from '@react-pdf/renderer';
 // @ts-ignore
 import logo from '@/assets/logo-wide-for-spk.jpg';
+import { formatCurrency } from '@karunia/shared';
 
 // Create styles
 const styles = StyleSheet.create({
@@ -108,11 +109,6 @@ const SpkPdfDocument: React.FC<SpkPdfProps> = ({ data }) => {
         return new Date(dateString).toLocaleDateString('id-ID', {
             day: 'numeric', month: 'long', year: 'numeric'
         });
-    };
-
-    const formatCurrency = (amount: number | string) => {
-        if (!amount) return 'Rp 0';
-        return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(Number(amount));
     };
 
     return (

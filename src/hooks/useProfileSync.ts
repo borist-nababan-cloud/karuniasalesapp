@@ -4,7 +4,9 @@ import { supabase } from '@/lib/supabase';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 export const useProfileSync = () => {
-    const { user, logout, isApproved } = useAuthStore((state) => state);
+    const user = useAuthStore((state) => state.user);
+    const logout = useAuthStore((state) => state.logout);
+    const isApproved = useAuthStore((state) => state.isApproved);
     const navigate = useNavigate();
     const location = useLocation();
 

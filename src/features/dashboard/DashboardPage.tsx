@@ -18,16 +18,22 @@ export default function DashboardPage() {
             if (!user?.id) return;
             setLoading(true);
             try {
+                console.log(`[DashboardPage] Fetching SPKs for user: ${user.id}`);
                 const { data, error } = await supabase
                     .from('spks')
-                    .select('*, vehicle_types(name)')
-                    .eq('sales_profile_id', user.id)
+                    .select('*, spk_section_units(vehicle_types(name))')
+                    .eq('created_by', user.id)
                     .order('created_at', { ascending: false });
 
-                if (error) throw error;
+                if (error) {
+                    console.error("[DashboardPage] Supabase error fetching SPKs:", error);
+                    throw error;
+                }
+                
+                console.log(`[DashboardPage] Successfully fetched ${data?.length || 0} SPKs:`, data);
                 setSpkList(data || []);
             } catch (err) {
-                console.error("Failed to fetch SPKs", err);
+                console.error("[DashboardPage] Failed to fetch SPKs. Trace:", err);
             } finally {
                 setLoading(false);
             }
@@ -47,7 +53,7 @@ export default function DashboardPage() {
                 </Button>
             </div>
             <div className="text-sm text-gray-500 mb-4">
-                Hello, <span className="font-semibold text-gray-900">{user?.user_metadata?.username || user?.email}</span>
+                Hello, <span className="font-semibold text-gray-900">{(user as any)?.user_metadata?.username || user?.email}</span>
             </div>
 
             {loading && <div className="text-center py-4">Loading data...</div>}
@@ -88,7 +94,8 @@ import SpkActions from '../spk/components/SpkActionsNew';
 
 function SpkItemCard({ item, navigate, salesProfile }: { item: any, navigate: any, salesProfile: any }) {
     const isEditable = item.editable;
-    const vehicleName = item.vehicle_types?.name || item.unitInfo?.vehicleType?.name || item.vehicleType?.name || '-';
+    const unitData = Array.isArray(item.spk_section_units) ? item.spk_section_units[0] : item.spk_section_units;
+    const vehicleName = unitData?.vehicle_types?.name || item.vehicle_types?.name || item.unitInfo?.vehicleType?.name || item.vehicleType?.name || '-';
 
     const handleEdit = (data: any) => {
         navigate(`/spk/edit/${data.id}`);

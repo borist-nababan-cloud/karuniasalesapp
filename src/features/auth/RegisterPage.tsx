@@ -3,11 +3,12 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useNavigate, Link } from 'react-router-dom';
-import { useAuthStore } from '@/stores/authStore';
+
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { registerSalesUser } from '@karunia/shared';
 import { supabase } from '@/lib/supabase';
 import boxLogo from '@/assets/box-logo.jpg';
 
@@ -28,7 +29,6 @@ export default function RegisterPage() {
     const [error, setError] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const navigate = useNavigate();
-    const login = useAuthStore((state) => state.login);
 
     const { register, handleSubmit, formState: { errors } } = useForm<RegisterFormValues>({
         resolver: zodResolver(registerSchema),
@@ -38,43 +38,8 @@ export default function RegisterPage() {
         setIsLoading(true);
         setError(null);
         try {
-            // Register with Supabase
-            const { data: authData, error: authError } = await supabase.auth.signUp({
-                email: data.email,
-                password: data.password,
-                options: {
-                    data: {
-                        username: data.username,
-                    }
-                }
-            });
-
-            if (authError) throw authError;
-
-            const user = authData.user;
-            const session = authData.session;
-            
-            if (!user) throw new Error("Registration failed to return user");
-
-            // Auto-create User Profile via Client
-            const { error: profileError } = await supabase.from('user_profiles').insert({
-                id: user.id,
-                email: user.email,
-                username: data.username,
-                full_name: data.username,
-                role_id: 3,
-                confirmed: false,
-                blocked: false
-            });
-            
-            if (profileError) {
-                console.error("Failed to create sales profile:", profileError);
-                // Proceed anyway, profile can be created later or handled by admin
-            }
-
-            if (session) {
-                await supabase.auth.signOut();
-            }
+            // Use the shared Twin Protocol register logic which ensures role_id: 3 via insert
+            await registerSalesUser(supabase, data.email, data.password, data.username);
 
             alert("Registration successful! Your account is pending admin approval.");
             navigate('/auth/login');

@@ -8,11 +8,12 @@ interface SalesGuardProps {
 }
 
 export const SalesGuard: React.FC<SalesGuardProps> = ({ children }) => {
-  const { user, isAuthenticated } = useAuthStore();
+  const user = useAuthStore(state => state.user);
+  const isAuthenticated = useAuthStore(state => state.isAuthenticated);
   
   // If not authenticated at all, let the main router handle it (or redirect to login)
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/auth/login" replace />;
   }
 
   // Jika role bukan SALES (3), blokir akses

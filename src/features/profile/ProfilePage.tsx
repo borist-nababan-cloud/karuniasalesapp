@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useAuthStore } from "@/stores/authStore";
 import { supabase } from '@/lib/supabase';
 import QRCode from "react-qr-code";
-import CameraCapture from "@/components/CameraCapture";
+
 import AttendanceCard from '@/features/attendance/AttendanceCard';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,53 +20,7 @@ export default function ProfilePage() {
     const [isLoading, setIsLoading] = useState(true);
     const [isEditing, setIsEditing] = useState(false);
     const [formData, setFormData] = useState<any>({});
-    const [uploading, setUploading] = useState(false);
-    const [showCamera, setShowCamera] = useState(false);
 
-    const uploadFileToSupabase = async (file: File) => {
-        setUploading(true);
-        try {
-            if (!profile?.id) {
-                alert("Please save your profile details first before uploading a photo.");
-                return;
-            }
-
-            const fileExt = file.name.split('.').pop();
-            const fileName = `${profile.id}-photo-${Date.now()}.${fileExt}`;
-            const filePath = `profile-photos/${fileName}`;
-
-            const { error: uploadError } = await supabase.storage.from('spk-documents').upload(filePath, file);
-
-            if (uploadError) throw uploadError;
-
-            // Update user profile with the new photo URL
-            const { error: updateError } = await supabase
-                .from('user_profiles')
-                .update({ photo_url: filePath })
-                .eq('id', profile.id);
-
-            if (updateError) throw updateError;
-
-            setProfile((prev: any) => ({ ...prev, photo_url: filePath }));
-            alert("Photo uploaded successfully!");
-        } catch (error: any) {
-            console.error("Upload failed", error);
-            alert(`Upload failed: ${error.message || "Check connection"}`);
-        } finally {
-            setUploading(false);
-            setShowCamera(false);
-        }
-    };
-
-    const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (!e.target.files || e.target.files.length === 0) return;
-        const file = e.target.files[0];
-        await uploadFileToSupabase(file);
-    };
-
-    const handleCameraCapture = async (file: File) => {
-        await uploadFileToSupabase(file);
-    };
 
     useEffect(() => {
         if (!user?.id) return;
@@ -110,9 +64,6 @@ export default function ProfilePage() {
         try {
             const payload = {
                 full_name: formData.full_name,
-                address: formData.address,
-                city: formData.city,
-                province: formData.province,
                 phone: formData.phone,
                 whatsapp: formData.whatsapp,
             };
@@ -227,39 +178,7 @@ export default function ProfilePage() {
                         />
                     </div>
 
-                    <div className="space-y-2">
-                        <Label htmlFor="address">Address</Label>
-                        <Input
-                            id="address"
-                            name="address"
-                            value={formData.address || ''}
-                            onChange={handleInputChange}
-                            disabled={!isEditing}
-                        />
-                    </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="city">City</Label>
-                            <Input
-                                id="city"
-                                name="city"
-                                value={formData.city || ''}
-                                onChange={handleInputChange}
-                                disabled={!isEditing}
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="province">Province</Label>
-                            <Input
-                                id="province"
-                                name="province"
-                                value={formData.province || ''}
-                                onChange={handleInputChange}
-                                disabled={!isEditing}
-                            />
-                        </div>
-                    </div>
 
                     <div className="space-y-2">
                         <Label htmlFor="phone">Phone Number</Label>
@@ -282,34 +201,7 @@ export default function ProfilePage() {
                         />
                     </div>
 
-                    {isEditing && (
-                        <div className="space-y-2 pt-4 border-t">
-                            <Label>Update Profile Photo</Label>
-                            <div className="flex gap-2">
-                                <div className="relative">
-                                    <Button variant="secondary" onClick={() => setShowCamera(true)} disabled={uploading}>
-                                        Camera
-                                    </Button>
-                                </div>
 
-                                <div className="relative">
-                                    <Input
-                                        id="gallery-input"
-                                        type="file"
-                                        accept="image/*"
-                                        className="hidden"
-                                        onChange={handlePhotoUpload}
-                                        disabled={uploading}
-                                    />
-                                    <Button variant="outline" onClick={() => document.getElementById('gallery-input')?.click()} disabled={uploading}>
-                                        Gallery
-                                    </Button>
-                                </div>
-                            </div>
-                            {uploading && <p className="text-xs text-blue-500">Uploading...</p>}
-                            <p className="text-xs text-gray-500 mt-1">Files are uploaded instantly.</p>
-                        </div>
-                    )}
 
                 </CardContent>
                 <CardFooter>
@@ -330,12 +222,7 @@ export default function ProfilePage() {
                 </CardFooter>
             </Card>
 
-            {showCamera && (
-                <CameraCapture
-                    onCapture={handleCameraCapture}
-                    onClose={() => setShowCamera(false)}
-                />
-            )}
+
         </div>
     );
 }

@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import CameraCapture from "@/components/CameraCapture";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { type SPKData, SpkSchema } from '@karunia/shared';
 
 export default function CreateSpkForm() {
     const navigate = useNavigate();
@@ -170,7 +171,7 @@ export default function CreateSpkForm() {
             setInitialLoading(false);
         };
         initData();
-    }, [user, editId]);
+    }, [user?.id, editId]);
 
     const setField = (field: string, val: any) => {
         setFormData(prev => ({ ...prev, [field]: val }));
@@ -227,10 +228,17 @@ export default function CreateSpkForm() {
     };
 
     const handleSubmit = async () => {
-        if (!formData.vehicleType) {
-            alert("Please select a Vehicle Type.");
+        try {
+            SpkSchema.parse({
+                customer_name: formData.namaCustomer,
+                vehicle_type_id: String(formData.vehicleType || ''),
+                price: Number(formData.hargaOtr) || 0,
+            } as SPKData);
+        } catch (e: any) {
+            alert(`Validation Error: ${e.errors?.[0]?.message || e.message}`);
             return;
         }
+
         if (!formData.color) {
             alert("Please select a Color.");
             return;

@@ -41,14 +41,11 @@ export const useGeolocation = (enableHighAccuracy = true) => {
 
         const options = {
             enableHighAccuracy,
-            timeout: 5000,
-            maximumAge: 0,
+            timeout: 30000,
+            maximumAge: 10000,
         };
 
-        // Get initial position
-        navigator.geolocation.getCurrentPosition(success, error, options);
-
-        // Watch position
+        // Watch position (this automatically fetches the initial position too)
         const watchId = navigator.geolocation.watchPosition(success, error, options);
 
         return () => {

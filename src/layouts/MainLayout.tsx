@@ -7,7 +7,8 @@ import { useAttendanceTracker } from '@/hooks/useAttendanceTracker';
 import { useProfileSync } from '@/hooks/useProfileSync';
 
 export default function MainLayout() {
-    const { logout, isApproved } = useAuthStore((state) => state);
+    const logout = useAuthStore((state) => state.logout);
+    const isApproved = useAuthStore((state) => state.isApproved);
     const navigate = useNavigate();
 
     useAttendanceTracker();

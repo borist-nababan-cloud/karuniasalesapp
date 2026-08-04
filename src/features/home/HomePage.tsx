@@ -37,7 +37,7 @@ export default function HomePage() {
     return (
         <div className="space-y-6 pb-20">
             <div className="flex flex-col space-y-2">
-                <h1 className="text-2xl font-bold tracking-tight">Welcome, {user?.user_metadata?.username || user?.email}</h1>
+                <h1 className="text-2xl font-bold tracking-tight">Welcome, {(user as any)?.user_metadata?.username || user?.email}</h1>
                 <p className="text-muted-foreground">Latest News & Updates</p>
             </div>
 

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useGeolocation } from '@/hooks/useGeolocation';
-import { isWithinRange } from './attendanceUtils';
+import { calculateBranchDistance, isWithinRadius } from '@karunia/shared';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch'; // Import Switch
 import { Label } from '@/components/ui/label';
@@ -51,15 +51,14 @@ export default function AttendanceCard({ profileId, initialStatus, isBlocked }: 
     // Check Geofence (Visual feedback only)
     useEffect(() => {
         if (position) {
-            const check = isWithinRange(
-                position.latitude,
-                position.longitude,
-                BRANCH_LOCATION.latitude,
-                BRANCH_LOCATION.longitude,
-                BRANCH_LOCATION.radius
-            );
-            setDistance(check.distance);
-            setCanCheckIn(check.isWithin);
+            const distance = calculateBranchDistance({
+                userLat: position.latitude,
+                userLng: position.longitude,
+                branchLat: BRANCH_LOCATION.latitude,
+                branchLng: BRANCH_LOCATION.longitude
+            });
+            setDistance(distance);
+            setCanCheckIn(isWithinRadius(distance, BRANCH_LOCATION.radius));
         }
     }, [position]);
 
@@ -143,7 +142,7 @@ export default function AttendanceCard({ profileId, initialStatus, isBlocked }: 
                         <CardTitle className="text-blue-900">Attendance</CardTitle>
                         <CardDescription className="text-blue-700">
                             {geoLoading ? 'Locating...' :
-                                geoError ? 'Location Error' :
+                                geoError ? `Location Error: ${geoError}` :
                                     distance !== null ? `Distance: ${distance}m from Branch` : 'Unknown Location'}
                         </CardDescription>
                     </div>

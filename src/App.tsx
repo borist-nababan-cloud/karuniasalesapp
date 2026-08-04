@@ -36,6 +36,10 @@ function App() {
           </Route>
         </Route>
 
+        {/* Fallback routes for legacy paths and undefined URLs */}
+        <Route path="/login" element={<Navigate to="/auth/login" replace />} />
+        <Route path="*" element={<Navigate to="/home" replace />} />
+
       </Routes>
     </BrowserRouter>
   );
