@@ -1,8 +1,6 @@
 import React from 'react';
+import { formatCurrency, formatTenor } from '@karunia/shared';
 import { Page, Text, View, Document, StyleSheet, Image } from '@react-pdf/renderer';
-// @ts-ignore
-import logo from '@/assets/logo-wide-for-spk.jpg';
-import { formatCurrency } from '@karunia/shared';
 
 // Create styles
 const styles = StyleSheet.create({
@@ -111,12 +109,17 @@ const SpkPdfDocument: React.FC<SpkPdfProps> = ({ data }) => {
         });
     };
 
+    // Use absolute URL for image if possible, or relative if public folder works
+    // In React/Vite, /logo-wide.jpg should be in public folder.
+    const logoSrc = "/images/logo-wide.jpg";
+
     return (
         <Document>
             <Page size="A4" style={styles.page}>
                 {/* Header */}
                 <View style={styles.header}>
-                    <Image style={styles.logo} src={logo} />
+                    {/* eslint-disable-next-line jsx-a11y/alt-text */}
+                    <Image style={styles.logo} src={logoSrc} />
                     <View style={styles.titleContainer}>
                         <Text style={styles.reportTitle}>SURAT PEMESANAN KENDARAAN</Text>
                         <Text style={styles.spkNumber}>No: {data.noSPK || '-'}</Text>
@@ -197,8 +200,8 @@ const SpkPdfDocument: React.FC<SpkPdfProps> = ({ data }) => {
                     <View style={styles.column}>
                         <Text style={styles.sectionTitle}>IV. RINCIAN PEMBAYARAN</Text>
                         <View style={styles.row}>
-                            <Text style={styles.label}>Cara Bayar</Text>
-                            <Text style={styles.value}>: {data.paymentInfo?.caraBayar || '-'}</Text>
+                            <Text style={styles.label}>Pembelian Via</Text>
+                            <Text style={styles.value}>: {data.paymentInfo?.pembelianVia || '-'}</Text>
                         </View>
                         <View style={styles.row}>
                             <Text style={styles.label}>Harga OTR</Text>
@@ -212,22 +215,14 @@ const SpkPdfDocument: React.FC<SpkPdfProps> = ({ data }) => {
                             <Text style={styles.label}>Uang Muka (DP)</Text>
                             <Text style={styles.value}>: {formatCurrency(data.paymentInfo?.dp)}</Text>
                         </View>
-                        {data.paymentInfo?.caraBayar === 'KREDIT' && (
-                            <>
-                                <View style={styles.row}>
-                                    <Text style={styles.label}>Angsuran</Text>
-                                    <Text style={styles.value}>: {formatCurrency(data.paymentInfo?.angsuran)}</Text>
-                                </View>
-                                <View style={styles.row}>
-                                    <Text style={styles.label}>Tenor</Text>
-                                    <Text style={styles.value}>: {data.paymentInfo?.tenor} Bulan</Text>
-                                </View>
-                                <View style={styles.row}>
-                                    <Text style={styles.label}>Leasing</Text>
-                                    <Text style={styles.value}>: {data.paymentInfo?.namaLeasing || '-'}</Text>
-                                </View>
-                            </>
-                        )}
+                        <View style={styles.row}>
+                            <Text style={styles.label}>Tenor</Text>
+                            <Text style={styles.value}>: {formatTenor(data.paymentInfo?.tenor)}</Text>
+                        </View>
+                        <View style={styles.row}>
+                            <Text style={styles.label}>Nama Leasing</Text>
+                            <Text style={styles.value}>: {data.paymentInfo?.namaLeasing || '-'}</Text>
+                        </View>
                     </View>
                 </View>
 
@@ -245,19 +240,25 @@ const SpkPdfDocument: React.FC<SpkPdfProps> = ({ data }) => {
                 <View style={styles.footer}>
                     <View style={styles.signatureBlock}>
                         <Text>Hormat Kami,</Text>
-                        <View style={styles.signatureLine} />
+                        <View style={{ ...styles.signatureLine, borderBottomColor: 'transparent' }} />
+                        <View style={{ borderBottomWidth: 1, borderBottomColor: '#000', width: 150, textAlign: 'center', marginTop: 0 }} >
+                            <Text style={{ textAlign: 'center', paddingBottom: 2 }}>{data.salesProfile?.surename || '(.....................)'}</Text>
+                        </View>
                         <Text>Sales Consultant</Text>
                     </View>
                     <View style={styles.signatureBlock}>
                         <Text>Menyetujui,</Text>
-                        <View style={styles.signatureLine} />
+                        <View style={{ ...styles.signatureLine, borderBottomColor: 'transparent' }} />
+                        <View style={{ borderBottomWidth: 1, borderBottomColor: '#000', width: 150, textAlign: 'center', marginTop: 0 }} >
+                            <Text style={{ textAlign: 'center', paddingBottom: 2 }}>{data.namaCustomer || '(.....................)'}</Text>
+                        </View>
                         <Text>Pemesanan (Customer)</Text>
                     </View>
                     <View style={styles.signatureBlock}>
                         <Text>Nama SPV</Text>
                         <View style={{ ...styles.signatureLine, borderBottomColor: 'transparent' }} />
                         <View style={{ borderBottomWidth: 1, borderBottomColor: '#000', width: 150, textAlign: 'center', marginTop: 0 }} >
-                            <Text style={{ textAlign: 'center', paddingBottom: 2 }}>{data.salesProfile?.namaSupervisor || '(.....................)'}</Text>
+                            <Text style={{ textAlign: 'center', paddingBottom: 2 }}>{data.salesProfile?.namasupervisor || '(.....................)'}</Text>
                         </View>
                         <Text>Supervisor</Text>
                     </View>

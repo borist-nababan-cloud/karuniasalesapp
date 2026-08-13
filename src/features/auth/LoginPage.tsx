@@ -1,35 +1,31 @@
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
+import { loginSchema, type LoginFormData } from '@karunia/shared';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Eye, EyeOff } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/lib/supabase';
 import { ENV } from '@/config/env';
 import boxLogo from '@/assets/box-logo.jpg';
 
-const loginSchema = z.object({
-    identifier: z.string().email({ message: "Invalid email address" }),
-    password: z.string().min(6, { message: "Password must be at least 6 characters" }),
-});
-
-type LoginFormValues = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
     const [error, setError] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
     const navigate = useNavigate();
     const login = useAuthStore((state) => state.login);
 
-    const { register, handleSubmit, formState: { errors } } = useForm<LoginFormValues>({
+    const { register, handleSubmit, formState: { errors } } = useForm<LoginFormData>({
         resolver: zodResolver(loginSchema),
     });
 
-    const onSubmit = async (data: LoginFormValues) => {
+    const onSubmit = async (data: LoginFormData) => {
         setIsLoading(true);
         setError(null);
         try {
@@ -54,7 +50,6 @@ export default function LoginPage() {
                 .single();
 
             if (profileError || !profile) {
-                console.error("Profile check failed", profileError);
                 // Fallback
                 login({
                     id: user.id,
@@ -62,18 +57,18 @@ export default function LoginPage() {
                     username: user.email!
                 }, session.access_token, false);
                 await supabase.auth.signOut();
-                alert("Profile incomplete. Please contact admin.");
+                alert("Profil tidak lengkap. Silakan hubungi admin.");
                 return;
             }
 
             if (profile.blocked) {
-                alert("Access Denied: You are blocked by admin.");
+                alert("Akses Ditolak: Anda telah diblokir oleh admin.");
                 return;
             }
 
             if (profile.confirmed !== true) {
                 await supabase.auth.signOut();
-                alert("Registration pending: Please wait for an administrator to approve your account.");
+                alert("Pendaftaran tertunda: Silakan tunggu administrator untuk menyetujui akun Anda.");
                 return;
             }
 
@@ -84,10 +79,13 @@ export default function LoginPage() {
                 role_id: profile.role_id
             }, session.access_token, true);
 
-            navigate('/dashboard');
+            if (profile.force_password_reset) {
+                navigate('/reset-password-mandatory');
+            } else {
+                navigate('/dashboard');
+            }
         } catch (err: any) {
-            console.error(err);
-            setError(err.message || 'Invalid credentials');
+            setError('Terjadi kesalahan pada sistem, silakan hubungi tim IT.');
         } finally {
             setIsLoading(false);
         }
@@ -110,7 +108,16 @@ export default function LoginPage() {
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="password">Password</Label>
-                            <Input id="password" type="password" {...register('password')} />
+                            <div className="relative">
+                                <Input id="password" type={showPassword ? 'text' : 'password'} {...register('password')} className="pr-10" />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPassword(!showPassword)}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                                >
+                                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                </button>
+                            </div>
                             {errors.password && <p className="text-sm text-red-500">{errors.password.message}</p>}
                         </div>
                         {error && <p className="text-sm text-red-500">{error}</p>}

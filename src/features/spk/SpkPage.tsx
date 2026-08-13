@@ -25,12 +25,41 @@ export default function SpkPage() {
             if (!user?.id) return;
             setLoading(true);
             try {
-                // Fetch SPKs for the logged-in user
+                // 1. Resolve BigInt ID gracefully without 406 Not Acceptable error
+                const { data: profile, error: profileErr } = await supabase
+                    .from('sales_profiles')
+                    .select('id')
+                    .eq('sales_uid', user.id)
+                    .maybeSingle();
+                
+                if (profileErr) {
+                    console.error("[SpkPage] Failed to fetch sales profile:", profileErr);
+                }
+
+                // 2. Fetch SPKs relationally
                 let query = supabase
                     .from('spks')
-                    .select('*, vehicle_types(name)')
-                    .eq('sales_profile_id', user.id)
+                    .select(`
+                        *,
+                        salesProfile:user_profiles!created_by(id, full_name, username, email, phone, supervisor:supervisors!user_profiles_supervisor_id_fkey(namasupervisor)),
+                        branch:branches(*),
+                        spk_section_details(*),
+                        spk_section_units(
+                            *,
+                            vehicle_types(name),
+                            colors(colorname)
+                        ),
+                        spk_section_payments(*)
+                    `)
                     .order('created_at', { ascending: false });
+
+                // If user has a sales profile, match by sales_profile_id. 
+                // Otherwise fallback to their Auth user ID (created_by)
+                if (profile?.id) {
+                    query = query.eq('sales_profile_id', profile.id);
+                } else {
+                    query = query.eq('created_by', user.id);
+                }
 
                 if (activeTab === 'on_progress') {
                     query = query.eq('finish', false).eq('editable', true);
@@ -58,7 +87,7 @@ export default function SpkPage() {
 
     const columns = useMemo<MRT_ColumnDef<any>[]>(() => [
         {
-            accessorKey: 'noSPK',
+            accessorKey: 'no_spk',
             header: 'No SPK',
         },
         {
@@ -66,15 +95,21 @@ export default function SpkPage() {
             header: 'Customer',
             Cell: ({ row }) => (
                 <div>
-                    <div className="font-medium">{row.original.namaCustomer}</div>
-                    <div className="text-xs text-slate-500">{row.original.noTeleponCustomer}</div>
+                    <div className="font-medium">{row.original.nama_customer || '-'}</div>
+                    <div className="text-xs text-slate-500">{row.original.no_telepon_customer || '-'}</div>
                 </div>
             )
         },
         {
             id: 'vehicle',
             header: 'Vehicle',
-            accessorFn: (row) => row.vehicle_types?.name || '-',
+            accessorFn: (row) => {
+                const units = row.spk_section_units;
+                if (Array.isArray(units) && units.length > 0) {
+                    return units[0]?.vehicle_types?.name || '-';
+                }
+                return units?.vehicle_types?.name || '-';
+            },
         },
         {
             accessorKey: 'tanggal',
@@ -83,7 +118,7 @@ export default function SpkPage() {
         {
             id: 'actions',
             header: 'Actions',
-            Cell: ({ row }) => <SpkActions data={{...row.original, salesProfile: user}} onEdit={handleEdit} />,
+            Cell: ({ row }) => <SpkActions data={row.original} onEdit={handleEdit} />,
         }
     ], [user]);
 

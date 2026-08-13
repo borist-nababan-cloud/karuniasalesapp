@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 
-export function getSupabaseMedia(path: string | null) {
+export function getSupabaseMedia(path: string | null, bucket: string = 'spk-documents') {
   if (!path) return null;
   
   // If it's already a full URL, return it
@@ -8,7 +8,7 @@ export function getSupabaseMedia(path: string | null) {
     return path;
   }
 
-  // Generate public URL from 'spk-documents' bucket
-  const { data } = supabase.storage.from('spk-documents').getPublicUrl(path);
+  // Generate public URL from specified bucket
+  const { data } = supabase.storage.from(bucket).getPublicUrl(path);
   return data.publicUrl;
 };

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Check, X, Camera, MapPin, Search, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuthStore } from "@/stores/authStore";
 import { supabase } from '@/lib/supabase';
@@ -9,9 +10,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import CameraCapture from "@/components/CameraCapture";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { type SPKData, SpkSchema } from '@karunia/shared';
+import { type SPKData, spkFormSchema } from '@karunia/shared';
 
 export default function CreateSpkForm() {
     const navigate = useNavigate();
@@ -54,13 +56,16 @@ export default function CreateSpkForm() {
         bonus: '',
         lainLain: '',
 
-        caraBayar: 'TUNAI',
-        angsuran: 0,
+        caraBayarTj: 'TUNAI',
+        ketTj: '',
         tandaJadi: 0,
-        tenor: '0',
+        pembelianVia: 'KREDIT',
         namaLeasing: '',
         dp: 0,
-        pembelianVia: '',
+        angsuran: 0,
+        tenorTahun: '0',
+        tenorBulan: '0',
+        asuransi: '',
         keterangan: '',
 
         ktpUrl: '',
@@ -86,6 +91,9 @@ export default function CreateSpkForm() {
         const initData = async () => {
             if (!user) return;
 
+            let staticTypeData: any[] = [];
+            let staticGroupData: any[] = [];
+
             try {
                 const [typeRes, groupRes, colorRes] = await Promise.all([
                     supabase.from('vehicle_types').select('*'),
@@ -93,66 +101,107 @@ export default function CreateSpkForm() {
                     supabase.from('colors').select('*')
                 ]);
 
-                setVehicleTypes(typeRes.data || []);
-                setVehicleGroups(groupRes.data || []);
+                staticTypeData = typeRes.data || [];
+                staticGroupData = groupRes.data || [];
+
+                setVehicleTypes(staticTypeData);
+                setVehicleGroups(staticGroupData);
                 setColors(colorRes.data || []);
 
             } catch (error) {
-                console.error("Static data init failed", error);
             }
 
             if (editId) {
                 try {
                     const { data: spk, error } = await supabase
                         .from('spks')
-                        .select('*')
+                        .select(`
+                            *,
+                            spk_section_details(*),
+                            spk_section_units(*),
+                            spk_section_payments(*)
+                        `)
                         .eq('id', editId)
                         .single();
 
-                    if (error) throw error;
+                    if (error) {
+                        throw error;
+                    }
+
 
                     if (spk) {
-                        setNextSpkNumber(spk.noSPK || spk.no_spk);
-                        setFormData(prev => ({
-                            ...prev,
-                            namaCustomer: spk.namaCustomer || spk.nama_customer || '',
-                            pekerjaanCustomer: spk.pekerjaanCustomer || spk.pekerjaan_customer || '',
-                            emailCustomer: spk.emailcustomer || spk.email_customer || '',
-                            namaDebitur: spk.namaDebitur || spk.nama_debitur || '',
-                            alamatCustomer: spk.alamatCustomer || spk.alamat_customer || '',
-                            noTeleponCustomer: spk.noTeleponCustomer || spk.no_telepon_customer || '',
+                        // PostgREST returns an object (not an array) if a UNIQUE constraint exists on the foreign key.
+                        // We must handle both Array and Object structures to prevent undefined mapping.
+                        const extractSection = (section: any) => {
+                            if (Array.isArray(section)) return section[0] || {};
+                            return section || {};
+                        };
 
-                            // Handle both component JSONB and flattened structure possibilities
-                            namaBpkbStnk: spk.detailInfo?.namaBpkbStnk || spk.nama_bpkb_stnk || '',
-                            alamatBpkbStnk: spk.detailInfo?.alamatBpkbStnk || spk.alamat_bpkb_stnk || '',
-                            kotaBpkbStnk: spk.detailInfo?.kotaStnkBpkb || spk.kota_bpkb_stnk || '',
+                        const detail = extractSection(spk.spk_section_details);
+                        const unit = extractSection(spk.spk_section_units);
+                        const payment = extractSection(spk.spk_section_payments);
 
-                            vehicleType: spk.vehicle_type_id || spk.unitInfo?.vehicleType?.id || null,
-                            hargaOtr: spk.harga_otr || spk.unitInfo?.hargaOtr || 0,
-                            noMesin: spk.no_mesin || spk.unitInfo?.noMesin || '',
-                            noRangka: spk.no_rangka || spk.unitInfo?.noRangka || '',
-                            color: spk.color_id || spk.unitInfo?.color?.id || null,
-                            tahun: spk.tahun || spk.unitInfo?.tahun || '',
-                            bonus: spk.bonus || spk.unitInfo?.bonus || '',
-                            lainLain: spk.lain_lain || spk.unitInfo?.lainLain || '',
 
-                            caraBayar: spk.cara_bayar || spk.paymentInfo?.caraBayar || 'TUNAI',
-                            angsuran: spk.angsuran || spk.paymentInfo?.angsuran || 0,
-                            tandaJadi: spk.tanda_jadi || spk.paymentInfo?.tandaJadi || 0,
-                            tenor: spk.tenor || spk.paymentInfo?.tenor || '0',
-                            namaLeasing: spk.nama_leasing || spk.paymentInfo?.namaLeasing || '',
-                            dp: spk.dp || spk.paymentInfo?.dp || 0,
-                            pembelianVia: spk.pembelian_via || spk.paymentInfo?.pembelianVia || '',
-                            keterangan: spk.keterangan || spk.paymentInfo?.keterangan || '',
+                        // Resolve vehicle group for better UX
+                        let resolvedGroupId = "all";
+                        if (unit.vehicle_type_id) {
+                            const vt = staticTypeData.find((v: any) => v.id == unit.vehicle_type_id);
+                            if (vt) {
+                                const vg = staticGroupData.find((g: any) => g.name === vt.vehicle_group);
+                                if (vg) {
+                                    resolvedGroupId = vg.id.toString();
+                                    setSelectedGroup(resolvedGroupId);
+                                } else {
+                                }
+                            } else {
+                            }
+                        }
 
-                            ktpUrl: spk.ktp_url || spk.ktpUrl || '',
-                            kkUrl: spk.kk_url || spk.kkUrl || '',
-                            selfieUrl: spk.selfie_url || spk.selfieUrl || '',
-                        }));
+                        setNextSpkNumber(spk.no_spk);
+                        
+                            const totalTenor = payment.tenor ? Number(payment.tenor) : 0;
+                            const newFormData = {
+                                namaCustomer: spk.nama_customer || '',
+                                pekerjaanCustomer: spk.pekerjaan_customer || '',
+                                emailCustomer: spk.email_customer || '',
+                                namaDebitur: spk.nama_debitur || '',
+                                alamatCustomer: spk.alamat_customer || '',
+                                noTeleponCustomer: spk.no_telepon_customer || '',
+
+                                namaBpkbStnk: detail.nama_bpkb_stnk || '',
+                                alamatBpkbStnk: detail.alamat_bpkb_stnk || '',
+                                kotaBpkbStnk: detail.kota_stnk_bpkb || '',
+
+                                vehicleType: unit.vehicle_type_id ? unit.vehicle_type_id.toString() : null,
+                                hargaOtr: unit.harga_otr || 0,
+                                noMesin: unit.no_mesin || '',
+                                noRangka: unit.no_rangka || '',
+                                color: unit.color_id ? unit.color_id.toString() : null,
+                                tahun: unit.tahun || '',
+                                bonus: unit.bonus || '',
+                                lainLain: unit.lain_lain || '',
+
+                                caraBayarTj: payment.cara_bayar_tj || 'TUNAI',
+                                ketTj: payment.ket_tj || '',
+                                tandaJadi: payment.tanda_jadi || 0,
+                                pembelianVia: payment.pembelian_via || 'KREDIT',
+                                namaLeasing: payment.nama_leasing || '',
+                                dp: payment.dp || 0,
+                                angsuran: payment.angsuran || 0,
+                                tenorTahun: Math.floor(totalTenor / 12).toString(),
+                                tenorBulan: (totalTenor % 12).toString(),
+                                asuransi: payment.asuransi || '',
+                                keterangan: payment.keterangan || '',
+
+                            ktpUrl: spk.ktp_url || '',
+                            kkUrl: spk.kk_url || '',
+                            selfieUrl: spk.selfie_url || '',
+                        };
+                        
+                        setFormData(prev => ({ ...prev, ...newFormData }));
                     }
                 } catch (err) {
-                    console.error("Failed to fetch SPK details", err);
-                    alert("Failed to load SPK data.");
+                    alert("Terjadi kesalahan pada sistem saat memuat data, silakan hubungi tim IT.");
                 }
             } else {
                 const newSpk = generateSpkNumber();
@@ -175,6 +224,16 @@ export default function CreateSpkForm() {
 
     const setField = (field: string, val: any) => {
         setFormData(prev => ({ ...prev, [field]: val }));
+    };
+
+    const formatCurrency = (val: any) => {
+        if (!val && val !== 0) return '';
+        return val.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    };
+
+    const handleNumberChange = (field: string, rawValue: string) => {
+        const numericValue = rawValue.replace(/\D/g, '');
+        setField(field, numericValue ? Number(numericValue) : 0);
     };
 
     useEffect(() => {
@@ -207,8 +266,7 @@ export default function CreateSpkForm() {
             else if (fieldName === 'selfie') setFormData(prev => ({ ...prev, selfieUrl: filePath }));
 
         } catch (error: any) {
-            console.error("Upload failed", error);
-            alert(`Upload failed: ${error.message}`);
+            alert("Terjadi kesalahan pada sistem saat mengunggah, silakan hubungi tim IT.");
         } finally {
             setUploading(false);
             setShowCamera({ isOpen: false, field: null });
@@ -229,95 +287,154 @@ export default function CreateSpkForm() {
 
     const handleSubmit = async () => {
         try {
-            SpkSchema.parse({
+            spkFormSchema.parse({
                 customer_name: formData.namaCustomer,
                 vehicle_type_id: String(formData.vehicleType || ''),
                 price: Number(formData.hargaOtr) || 0,
             } as SPKData);
         } catch (e: any) {
-            alert(`Validation Error: ${e.errors?.[0]?.message || e.message}`);
+            let errorMsg = e.message;
+            try {
+                const parsedErrs = JSON.parse(e.message);
+                if (Array.isArray(parsedErrs) && parsedErrs.length > 0) {
+                    errorMsg = parsedErrs.map((err: any) => err.message).join(', ');
+                }
+            } catch {
+                // Not JSON, just use original message
+            }
+            alert(`Validasi Gagal: ${errorMsg}`);
             return;
         }
 
         if (!formData.color) {
-            alert("Please select a Color.");
+            alert("Silakan pilih warna kendaraan.");
             return;
         }
 
         setLoading(true);
         try {
-            const payloadData: any = {
-                noSPK: nextSpkNumber,
-                sales_profile_id: user?.id,
-                tanggal: new Date().toISOString().split('T')[0],
-
-                namaCustomer: formData.namaCustomer,
-                pekerjaanCustomer: formData.pekerjaanCustomer || '-',
-                emailcustomer: formData.emailCustomer,
-                namaDebitur: formData.namaDebitur,
-                alamatCustomer: formData.alamatCustomer,
-                kotacustomer: formData.kotaBpkbStnk,
-                noTeleponCustomer: formData.noTeleponCustomer,
-
-                detailInfo: {
-                    namaBpkbStnk: formData.namaBpkbStnk,
-                    alamatBpkbStnk: formData.alamatBpkbStnk,
-                    kotaStnkBpkb: formData.kotaBpkbStnk,
-                },
-
-                vehicle_type_id: formData.vehicleType,
-                harga_otr: Number(formData.hargaOtr) || 0,
-                no_mesin: formData.noMesin,
-                no_rangka: formData.noRangka,
-                color_id: formData.color,
-                tahun: String(formData.tahun || ''),
-                bonus: formData.bonus,
-                lain_lain: formData.lainLain,
-
-                cara_bayar: formData.caraBayar,
-                angsuran: Number(formData.angsuran) || 0,
-                tanda_jadi: Number(formData.tandaJadi) || 0,
-                tenor: String(formData.tenor || ''),
-                nama_leasing: formData.namaLeasing,
-                dp: Number(formData.dp) || 0,
-                pembelian_via: formData.pembelianVia,
-                keterangan: formData.keterangan,
-
-                ktp_url: formData.ktpUrl,
-                kk_url: formData.kkUrl,
-                selfie_url: formData.selfieUrl,
+            // 0. Resolve Sales Profile BigInt ID from UUID
+            let salesProfileId = null;
+            if (user?.id) {
+                const { data: profile, error: profileErr } = await supabase
+                    .from('sales_profiles')
+                    .select('id')
+                    .eq('sales_uid', user.id)
+                    .maybeSingle();
                 
+                if (profileErr) {
+                } else if (profile) {
+                    salesProfileId = profile.id;
+                } else {
+                }
+            }
+
+            // 1. SPKS Core Table
+            const spksPayload = {
+                no_spk: nextSpkNumber,
+                sales_profile_id: salesProfileId,
+                tanggal: new Date().toISOString().split('T')[0],
+                nama_customer: formData.namaCustomer || null,
+                pekerjaan_customer: formData.pekerjaanCustomer || '-',
+                email_customer: formData.emailCustomer || null,
+                nama_debitur: formData.namaDebitur || null,
+                alamat_customer: formData.alamatCustomer || null,
+                kota_customer: formData.kotaBpkbStnk || null,
+                no_telepon_customer: formData.noTeleponCustomer || null,
+                ktp_url: formData.ktpUrl || null,
+                kk_url: formData.kkUrl || null,
+                selfie_url: formData.selfieUrl || null,
                 finish: false,
                 editable: true
             };
 
-            // Remove empty strings
-            Object.keys(payloadData).forEach(key => {
-                if (payloadData[key] === '') {
-                    payloadData[key] = null;
-                }
-            });
+            // 2. SPK Section Details
+            const detailsPayload = {
+                nama_bpkb_stnk: formData.namaBpkbStnk || null,
+                alamat_bpkb_stnk: formData.alamatBpkbStnk || null,
+                kota_stnk_bpkb: formData.kotaBpkbStnk || null,
+            };
+
+            // 3. Unit Section
+            const unitsPayload = {
+                vehicle_type_id: formData.vehicleType ? parseInt(formData.vehicleType as string, 10) : null,
+                harga_otr: formData.hargaOtr,
+                no_mesin: formData.noMesin,
+                no_rangka: formData.noRangka,
+                color_id: formData.color ? parseInt(formData.color as string, 10) : null,
+                tahun: formData.tahun,
+                bonus: formData.bonus,
+                lain_lain: formData.lainLain
+            };
+
+            // 4. SPK Section Payments
+            const tTahun = Number(formData.tenorTahun) || 0;
+            const tBulan = Number(formData.tenorBulan) || 0;
+            const totalTenor = (tTahun * 12) + tBulan;
+
+            const paymentsPayload = {
+                cara_bayar_tj: formData.caraBayarTj || null,
+                ket_tj: formData.ketTj || null,
+                tanda_jadi: Number(formData.tandaJadi) || 0,
+                pembelian_via: formData.pembelianVia || 'KREDIT',
+                nama_leasing: formData.namaLeasing || null,
+                dp: Number(formData.dp) || 0,
+                angsuran: Number(formData.angsuran) || 0,
+                tenor: totalTenor,
+                asuransi: formData.asuransi || null,
+                keterangan: formData.keterangan || null,
+            };
 
             if (editId) {
-                const { error } = await supabase.from('spks').update(payloadData).eq('id', editId);
-                if (error) throw error;
-                alert("SPK Updated Successfully!");
+                // Update Core
+                const { error: errSpk } = await supabase.from('spks').update(spksPayload).eq('id', editId);
+                if (errSpk) {
+                    throw errSpk;
+                }
+
+                // Upsert Relations (handles both existing relations and legacy SPKs that lack them)
+                
+                const { error: errDet } = await supabase.from('spk_section_details')
+                    .upsert({ spk_id: editId, ...detailsPayload }, { onConflict: 'spk_id' });
+
+                const { error: errUni } = await supabase.from('spk_section_units')
+                    .upsert({ spk_id: editId, ...unitsPayload }, { onConflict: 'spk_id' });
+
+                const { error: errPay } = await supabase.from('spk_section_payments')
+                    .upsert({ spk_id: editId, ...paymentsPayload }, { onConflict: 'spk_id' });
+
+                alert("SPK Berhasil Diperbarui!");
             } else {
-                const { error } = await supabase.from('spks').insert(payloadData);
-                if (error) throw error;
+                // Insert Core
+                const { data: spkData, error: errSpk } = await supabase
+                    .from('spks')
+                    .insert(spksPayload)
+                    .select('id')
+                    .single();
+                if (errSpk) throw errSpk;
+
+                const newSpkId = spkData.id;
+
+                // Insert Relations using generated SPK ID
+                
+                const { error: errDetails } = await supabase.from('spk_section_details').insert({ spk_id: newSpkId, ...detailsPayload }).select();
+                
+                const { error: errUnits } = await supabase.from('spk_section_units').insert({ spk_id: newSpkId, ...unitsPayload }).select();
+                
+                const { error: errPayments } = await supabase.from('spk_section_payments').insert({ spk_id: newSpkId, ...paymentsPayload }).select();
+
                 localStorage.removeItem('spk_draft');
-                alert("SPK Created Successfully!");
+                alert("SPK Berhasil Dibuat!");
             }
             navigate('/spk');
         } catch (error: any) {
-            console.error("SPK Submission Error:", error);
-            alert(`Error: ${error.message || "Unknown error"}`);
+            alert("Terjadi kesalahan pada sistem, silakan hubungi tim IT.");
         } finally {
             setLoading(false);
         }
     };
 
-    if (initialLoading) return <div className="p-8 text-center">Loading Form...</div>;
+    if (initialLoading) return <div className="flex justify-center items-center p-8"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
     return (
         <div className="max-w-xl mx-auto pb-20">
@@ -499,47 +616,87 @@ export default function CreateSpkForm() {
                 <TabsContent value="payment">
                     <Card>
                         <CardHeader><CardTitle>C. Payment Information</CardTitle></CardHeader>
-                        <CardContent className="space-y-4">
-                            <div className="space-y-2">
-                                <Label>Cara Bayar</Label>
-                                <Select value={formData.caraBayar} onValueChange={v => setField('caraBayar', v)}>
-                                    <SelectTrigger><SelectValue /></SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="TUNAI">TUNAI</SelectItem>
-                                        <SelectItem value="KREDIT">KREDIT</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label>Angsuran</Label>
-                                    <Input type="number" value={formData.angsuran} onChange={e => setField('angsuran', e.target.value)} />
+                        <CardContent className="space-y-6">
+                            {/* Group: Tanda Jadi */}
+                            <div className="space-y-4 border p-4 rounded-md">
+                                <h3 className="font-semibold text-lg text-slate-700">Tanda Jadi</h3>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label>Nilai Tanda Jadi</Label>
+                                        <Input value={formatCurrency(formData.tandaJadi)} onChange={e => handleNumberChange('tandaJadi', e.target.value)} />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Cara Bayar</Label>
+                                        <Select value={formData.caraBayarTj} onValueChange={v => setField('caraBayarTj', v)}>
+                                            <SelectTrigger><SelectValue /></SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="TUNAI">TUNAI</SelectItem>
+                                                <SelectItem value="TRANSFER">TRANSFER</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
                                 </div>
                                 <div className="space-y-2">
-                                    <Label>Tanda Jadi</Label>
-                                    <Input type="number" value={formData.tandaJadi} onChange={e => setField('tandaJadi', e.target.value)} />
+                                    <Label>Keterangan Tanda Jadi</Label>
+                                    <Input value={formData.ketTj} onChange={e => setField('ketTj', e.target.value)} />
                                 </div>
                             </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label>Tenor</Label>
-                                    <Input type="number" value={formData.tenor} onChange={e => setField('tenor', e.target.value)} />
+
+                            {/* Group: Pembelian Via */}
+                            <div className="space-y-4 border p-4 rounded-md">
+                                <h3 className="font-semibold text-lg text-slate-700">Pembelian Via</h3>
+                                <RadioGroup value={formData.pembelianVia} onValueChange={v => setField('pembelianVia', v)} className="flex gap-4">
+                                    <div className="flex items-center space-x-2">
+                                        <RadioGroupItem value="TUNAI" id="r-tunai" />
+                                        <Label htmlFor="r-tunai">TUNAI</Label>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                        <RadioGroupItem value="KREDIT" id="r-kredit" />
+                                        <Label htmlFor="r-kredit">KREDIT</Label>
+                                    </div>
+                                </RadioGroup>
+                            </div>
+
+                            {/* Group: Kredit Detail */}
+                            {formData.pembelianVia === 'KREDIT' && (
+                                <div className="space-y-4 border p-4 rounded-md bg-slate-50">
+                                    <h3 className="font-semibold text-lg text-slate-700">Kredit Detail</h3>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <Label>Nama Leasing</Label>
+                                            <Input value={formData.namaLeasing} onChange={e => setField('namaLeasing', e.target.value)} />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>Down Payment (DP)</Label>
+                                            <Input value={formatCurrency(formData.dp)} onChange={e => handleNumberChange('dp', e.target.value)} />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>Angsuran</Label>
+                                            <Input value={formatCurrency(formData.angsuran)} onChange={e => handleNumberChange('angsuran', e.target.value)} />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>Tenor</Label>
+                                            <div className="flex gap-2">
+                                                <div className="flex-1 flex items-center gap-2">
+                                                    <Input type="number" className="w-16" value={formData.tenorTahun} onChange={e => setField('tenorTahun', e.target.value)} />
+                                                    <span className="text-sm">Tahun</span>
+                                                </div>
+                                                <div className="flex-1 flex items-center gap-2">
+                                                    <Input type="number" className="w-16" value={formData.tenorBulan} onChange={e => setField('tenorBulan', e.target.value)} />
+                                                    <span className="text-sm">Bulan</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="space-y-2 col-span-2">
+                                            <Label>Asuransi</Label>
+                                            <Input value={formData.asuransi} onChange={e => setField('asuransi', e.target.value)} />
+                                        </div>
+                                    </div>
                                 </div>
-                                <div className="space-y-2">
-                                    <Label>Down Payment (DP)</Label>
-                                    <Input type="number" value={formData.dp} onChange={e => setField('dp', e.target.value)} />
-                                </div>
-                            </div>
+                            )}
+
                             <div className="space-y-2">
-                                <Label>Nama Leasing</Label>
-                                <Input value={formData.namaLeasing} onChange={e => setField('namaLeasing', e.target.value)} />
-                            </div>
-                            <div className="space-y-2">
-                                <Label>Pembelian Via</Label>
-                                <Input value={formData.pembelianVia} onChange={e => setField('pembelianVia', e.target.value)} />
-                            </div>
-                            <div className="space-y-2">
-                                <Label>Keterangan</Label>
+                                <Label>Keterangan Tambahan</Label>
                                 <Textarea value={formData.keterangan} onChange={e => setField('keterangan', e.target.value)} />
                             </div>
                         </CardContent>

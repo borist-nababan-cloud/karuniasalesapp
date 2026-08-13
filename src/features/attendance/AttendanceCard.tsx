@@ -40,6 +40,8 @@ export default function AttendanceCard({ profileId, initialStatus, isBlocked }: 
     const [canCheckIn, setCanCheckIn] = useState(false);
     const [loading, setLoading] = useState(false);
     const [syncLoading, setSyncLoading] = useState(false);
+    const [isAbsenLoading, setIsAbsenLoading] = useState(false);
+    const [absenResult, setAbsenResult] = useState<{success: boolean, message: string} | null>(null);
 
     // Ref to hold latest position without triggering effect re-runs for interval
     const positionRef = useRef(position);
@@ -62,15 +64,17 @@ export default function AttendanceCard({ profileId, initialStatus, isBlocked }: 
         }
     }, [position]);
 
-    const updateLocation = useCallback(async (currentPos: { latitude: number; longitude: number }) => {
+    const updateLocation = useCallback(async (currentPos: { latitude: number; longitude: number }, isManual = false) => {
         if (!currentPos) return;
         try {
-            await supabase
-                .from('user_profiles')
-                .update({ location: currentPos })
-                .eq('id', profileId);
+            await supabase.rpc('log_sales_position', {
+                p_user_id: profileId,
+                p_lat: currentPos.latitude,
+                p_lon: currentPos.longitude,
+                p_activity_type: isManual ? 'MANUAL_SYNC' : 'AUTO_SYNC'
+            });
         } catch (error) {
-            console.error("Failed to sync location", error);
+            console.error("Location sync failed", error);
         }
     }, [profileId]);
 
@@ -107,11 +111,10 @@ export default function AttendanceCard({ profileId, initialStatus, isBlocked }: 
 
             // If turning ON, sync location immediately using latest ref or current position
             if (checked && positionRef.current) {
-                await updateLocation(positionRef.current);
+                await updateLocation(positionRef.current, true);
             }
         } catch (error) {
-            console.error('Status update failed', error);
-            alert('Failed to update status.');
+            alert("Terjadi kesalahan pada sistem, gagal memperbarui status absensi.");
         } finally {
             setLoading(false);
         }
@@ -120,17 +123,57 @@ export default function AttendanceCard({ profileId, initialStatus, isBlocked }: 
     // Manual "Set Position" Handler
     const handleManualSync = async () => {
         if (!position) {
-            alert("Waiting for GPS location...");
+            alert("Menunggu lokasi GPS...");
             return;
         }
         setSyncLoading(true);
         try {
-            await updateLocation(position);
-            alert("Position updated successfully!");
+            await updateLocation(position, true);
+            alert("Posisi berhasil diperbarui!");
         } catch (error) {
-            alert("Failed to update position.");
+            alert("Terjadi kesalahan sistem, gagal memperbarui posisi.");
         } finally {
             setSyncLoading(false);
+        }
+    };
+
+    // Absen Harian Handler
+    const handleAbsenHarian = async () => {
+        if (!position) {
+            alert("Menunggu lokasi GPS...");
+            return;
+        }
+
+        setIsAbsenLoading(true);
+        setAbsenResult(null);
+
+        try {
+            const { data, error } = await supabase.rpc('log_daily_attendance', {
+                p_user_id: profileId,
+                p_lat: position.latitude,
+                p_lon: position.longitude
+            });
+
+            if (error) throw error;
+
+            setAbsenResult({
+                success: data.success,
+                message: data.message
+            });
+            
+            if (data.success) {
+                // Optionally clear the message after 10 seconds
+                setTimeout(() => setAbsenResult(null), 10000);
+            }
+
+        } catch (error) {
+            console.error("Absen error:", error);
+            setAbsenResult({
+                success: false,
+                message: "Terjadi kesalahan sistem saat melakukan absensi."
+            });
+        } finally {
+            setIsAbsenLoading(false);
         }
     };
 
@@ -169,13 +212,6 @@ export default function AttendanceCard({ profileId, initialStatus, isBlocked }: 
                     </Label>
                 </div>
 
-                {/* Range Warning */}
-                <div className="mb-4">
-                    <p className={`text-xs ${canCheckIn ? "text-green-600 font-medium" : "text-amber-600"}`}>
-                        {canCheckIn ? "✓ You are within range to check in." : "⚠ You are too far from branch to check in."}
-                    </p>
-                </div>
-
                 {/* Manual Sync Button */}
                 {isCheckedIn && (
                     <Button
@@ -189,6 +225,23 @@ export default function AttendanceCard({ profileId, initialStatus, isBlocked }: 
                         {syncLoading ? "Syncing..." : (!position ? "Waiting for GPS..." : "Update Position Immediately")}
                     </Button>
                 )}
+
+                {/* Absen Harian Button */}
+                <div className="mt-4 pt-4 border-t border-blue-200">
+                    <Button
+                        onClick={handleAbsenHarian}
+                        disabled={isAbsenLoading || !position || isBlocked}
+                        className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                        type="button"
+                    >
+                        {isAbsenLoading ? "Memproses Absen..." : (!position ? "Waiting for GPS..." : "Absen Harian (Catat Kehadiran)")}
+                    </Button>
+                    {absenResult && (
+                        <p className={`mt-2 text-sm text-center font-medium ${absenResult.success ? 'text-green-600' : 'text-red-500'}`}>
+                            {absenResult.message}
+                        </p>
+                    )}
+                </div>
             </CardContent>
         </Card>
     );

@@ -67,23 +67,16 @@ export default function MainLayout() {
                     </NavLink>
 
                     <NavLink
-                        to="/dashboard"
-                        onClick={(e) => {
-                            if (!isApproved) {
-                                e.preventDefault();
-                                alert("Dashboard requires approval.");
-                            }
-                        }}
+                        to="/spk"
                         className={({ isActive }) =>
                             cn(
                                 "flex flex-col items-center justify-center w-full h-full space-y-1 text-xs font-medium transition-colors",
-                                isActive ? "text-primary" : "text-muted-foreground hover:text-primary",
-                                !isApproved && "opacity-50 cursor-not-allowed"
+                                isActive ? "text-primary" : "text-muted-foreground hover:text-primary"
                             )
                         }
                     >
                         <ClipboardList className="h-5 w-5" />
-                        <span>Dashboard</span>
+                        <span>SPKs</span>
                     </NavLink>
 
                     <NavLink

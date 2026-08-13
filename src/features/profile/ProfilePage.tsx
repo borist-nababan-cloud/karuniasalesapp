@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { User, Key, Save, Camera, Edit2, LogOut, Loader2 } from 'lucide-react';
 import { useAuthStore } from "@/stores/authStore";
 import { supabase } from '@/lib/supabase';
 import QRCode from "react-qr-code";
@@ -19,6 +20,7 @@ export default function ProfilePage() {
     const [profile, setProfile] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isEditing, setIsEditing] = useState(false);
+    const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
     const [formData, setFormData] = useState<any>({});
 
 
@@ -29,7 +31,7 @@ export default function ProfilePage() {
             try {
                 const { data, error } = await supabase
                     .from('user_profiles')
-                    .select('*')
+                    .select('*, supervisors!user_profiles_supervisor_id_fkey(namasupervisor)')
                     .eq('id', user.id)
                     .single();
 
@@ -43,7 +45,7 @@ export default function ProfilePage() {
                     setFormData({});
                 }
             } catch (error: any) {
-                console.error("Failed to fetch profile", error);
+                console.error("fetchProfile error:", error);
                 setProfile(null);
                 setFormData({});
             } finally {
@@ -71,7 +73,7 @@ export default function ProfilePage() {
             const updateId = profile?.id;
 
             if (!updateId) {
-                alert("Error: No profile ID found. Please refresh or contact admin.");
+                alert("Terjadi kesalahan sistem: ID profil tidak ditemukan.");
                 return;
             }
 
@@ -84,16 +86,56 @@ export default function ProfilePage() {
 
             setProfile({ ...profile, ...payload });
             setIsEditing(false);
-            alert("Profile Updated Successfully!");
+            alert("Profil Berhasil Diperbarui!");
         } catch (error) {
-            console.error("Failed to update", error);
-            alert("Failed to update profile.");
+            alert("Terjadi kesalahan pada sistem saat memperbarui profil, silakan hubungi tim IT.");
         } finally {
             setIsLoading(false);
         }
     };
 
-    if (!user) return <div className="p-4">Loading...</div>;
+    const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        try {
+            if (!event.target.files || event.target.files.length === 0) {
+                return;
+            }
+            const file = event.target.files[0];
+            setIsUploadingAvatar(true);
+
+            const fileExt = file.name.split('.').pop();
+            const fileName = `${user?.id}-${Math.random()}.${fileExt}`;
+            const filePath = `${fileName}`;
+
+            // Upload to Supabase 'avatars' bucket
+            const { error: uploadError } = await supabase.storage
+                .from('avatars')
+                .upload(filePath, file, { upsert: true });
+
+            if (uploadError) {
+                throw uploadError;
+            }
+
+            // Update user profile in database
+            const { error: updateError } = await supabase
+                .from('user_profiles')
+                .update({ avatar: filePath })
+                .eq('id', user?.id);
+
+            if (updateError) {
+                throw updateError;
+            }
+
+            // Update local state
+            setProfile((prev: any) => ({ ...prev, avatar: filePath }));
+        } catch (error: any) {
+            console.error('Error uploading avatar:', error);
+            alert("Terjadi kesalahan pada sistem saat mengunggah, silakan hubungi tim IT.");
+        } finally {
+            setIsUploadingAvatar(false);
+        }
+    };
+
+    if (!user) return <div className="flex justify-center items-center h-48"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
     if (isLoading && !profile) return <div className="p-4">Fetching Profile...</div>;
 
     const qrValue = `${BASE_URL_PROFILE}${profile?.sales_uid || profile?.id || 'UNKNOWN'}`;
@@ -119,16 +161,33 @@ export default function ProfilePage() {
                     </CardHeader>
                     <CardContent className="space-y-4">
                         <div className="flex flex-col items-center mb-4">
-                            <div className="h-24 w-24 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 text-3xl font-bold mb-2 overflow-hidden border-2 border-slate-200">
-                                {profile?.photo_url ? (
-                                    <img
-                                        src={getSupabaseMedia(profile.photo_url) || ''}
-                                        alt="Profile"
-                                        className="h-full w-full object-cover"
-                                    />
-                                ) : (
-                                    <span>{profile?.full_name?.charAt(0).toUpperCase() || "U"}</span>
-                                )}
+                            <div className="relative group cursor-pointer mb-2">
+                                <input 
+                                    type="file" 
+                                    accept="image/*" 
+                                    className="hidden" 
+                                    id="avatar-upload"
+                                    onChange={handleAvatarUpload}
+                                    disabled={isUploadingAvatar}
+                                />
+                                <label htmlFor="avatar-upload" className="cursor-pointer block">
+                                    <div className="h-24 w-24 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 text-3xl font-bold overflow-hidden border-2 border-slate-200 relative">
+                                        {isUploadingAvatar ? (
+                                            <span className="text-sm font-normal">...</span>
+                                        ) : profile?.avatar ? (
+                                            <img
+                                                src={getSupabaseMedia(profile.avatar, 'avatars') || ''}
+                                                alt="Profile"
+                                                className="h-full w-full object-cover"
+                                            />
+                                        ) : (
+                                            <span>{profile?.full_name?.charAt(0).toUpperCase() || "U"}</span>
+                                        )}
+                                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <span className="text-white text-xs">Edit</span>
+                                        </div>
+                                    </div>
+                                </label>
                             </div>
                             <h3 className="text-xl font-bold text-slate-800">{profile?.full_name}</h3>
                             <p className="text-sm text-slate-500">{profile?.sales_uid || profile?.id}</p>
@@ -150,7 +209,7 @@ export default function ProfilePage() {
                             </div>
                             <div className="flex justify-between border-b pb-1">
                                 <span className="text-gray-500">Supervisor</span>
-                                <span className="font-medium">{profile?.namasupervisor || "-"}</span>
+                                <span className="font-medium">{profile?.supervisors?.namasupervisor || "-"}</span>
                             </div>
                         </div>
 

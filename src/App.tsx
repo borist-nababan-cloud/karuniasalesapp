@@ -3,7 +3,7 @@ import AuthLayout from './layouts/AuthLayout';
 import MainLayout from './layouts/MainLayout';
 import LoginPage from './features/auth/LoginPage';
 import RegisterPage from './features/auth/RegisterPage';
-import DashboardPage from './features/dashboard/DashboardPage';
+import ResetPasswordMandatoryPage from './features/auth/ResetPasswordMandatoryPage';
 import ProfilePage from './features/profile/ProfilePage';
 import SpkPage from './features/spk/SpkPage';
 import CreateSpkForm from './features/spk/CreateSpkForm';
@@ -22,13 +22,14 @@ function App() {
           <Route path="register" element={<RegisterPage />} />
           <Route index element={<Navigate to="login" replace />} />
         </Route>
+        
+        <Route path="/reset-password-mandatory" element={<ResetPasswordMandatoryPage />} />
 
         <Route path="/access-denied" element={<div className="p-8 text-center text-red-600 font-bold">Access Denied: You do not have SALES permission.</div>} />
 
         <Route element={<SalesGuard><ProtectedRoute /></SalesGuard>}>
           <Route element={<MainLayout />}>
             <Route path="/home" element={<HomePage />} />
-            <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/spk" element={<SpkPage />} />
             <Route path="/spk/create" element={<CreateSpkForm />} />

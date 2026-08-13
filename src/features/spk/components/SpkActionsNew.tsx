@@ -11,6 +11,7 @@ import {
 import { MoreHorizontal, Edit, Printer, Loader2 } from "lucide-react";
 import { pdf } from "@react-pdf/renderer";
 import SpkPdfDocument from "./SpkPdfDocument";
+import { parseSpkDataForPdf } from "@karunia/shared";
 
 interface SpkActionsProps {
     data: any;
@@ -26,18 +27,26 @@ export default function SpkActionsNew({ data, onEdit }: SpkActionsProps) {
 
         setPrinting(true);
         try {
-            const blob = await pdf(<SpkPdfDocument data={data} />).toBlob();
+            
+            const parsedData = parseSpkDataForPdf(data);
+            
+            
+            const blob = await pdf(<SpkPdfDocument data={parsedData} />).toBlob();
             const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = url;
-            link.download = `SPK-${(data.noSPK || 'DOC').replace(/\//g, '-')}.pdf`;
+            
+            // Dashboard format: SPK_5Q290_SPK_VIII_2026.pdf
+            const spkNo = parsedData?.noSPK || data?.no_spk || 'DOC';
+            const safeFileName = spkNo.replace(/\//g, '_');
+            link.download = `SPK_${safeFileName}.pdf`;
+            
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
             URL.revokeObjectURL(url);
         } catch (error) {
-            console.error("Failed to print", error);
-            alert("Failed to generate PDF");
+            alert("Terjadi kesalahan pada sistem, silakan hubungi tim IT.");
         } finally {
             setPrinting(false);
         }
