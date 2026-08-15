@@ -32,7 +32,7 @@ export default function LoginPage() {
             // Login with Supabase
             const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
                 email: data.identifier.trim(),
-                password: data.password,
+                password: data.password.trim(),
             });
             
             if (authError) throw authError;
