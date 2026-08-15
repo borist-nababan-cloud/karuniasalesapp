@@ -201,7 +201,7 @@ export default function CreateSpkForm() {
                         setFormData(prev => ({ ...prev, ...newFormData }));
                     }
                 } catch (err) {
-                    alert("Terjadi kesalahan pada sistem saat memuat data, silakan hubungi tim IT.");
+                    alert("Terjadi kesalahan pada sistem, silakan hubungi tim IT.");
                 }
             } else {
                 const newSpk = generateSpkNumber();
@@ -266,7 +266,7 @@ export default function CreateSpkForm() {
             else if (fieldName === 'selfie') setFormData(prev => ({ ...prev, selfieUrl: filePath }));
 
         } catch (error: any) {
-            alert("Terjadi kesalahan pada sistem saat mengunggah, silakan hubungi tim IT.");
+            alert("Terjadi kesalahan pada sistem, silakan hubungi tim IT.");
         } finally {
             setUploading(false);
             setShowCamera({ isOpen: false, field: null });
