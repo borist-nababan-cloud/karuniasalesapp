@@ -13,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import CameraCapture from "@/components/CameraCapture";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { type SPKData, spkFormSchema } from '@karunia/shared';
+import { type SPKData, SpkSchema } from '@karunia/shared';
 
 export default function CreateSpkForm() {
     const navigate = useNavigate();
@@ -287,7 +287,7 @@ export default function CreateSpkForm() {
 
     const handleSubmit = async () => {
         try {
-            spkFormSchema.parse({
+            SpkSchema.parse({
                 customer_name: formData.namaCustomer,
                 vehicle_type_id: String(formData.vehicleType || ''),
                 price: Number(formData.hargaOtr) || 0,

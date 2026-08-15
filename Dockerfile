@@ -5,21 +5,28 @@ WORKDIR /app
 
 # Install dependencies (cache optimized)
 COPY package.json package-lock.json ./
+COPY shared ./shared
 RUN npm ci
 
 # Copy source and build
 COPY . .
 
 # Build Arguments (Required for Vite to bake in Env Vars)
-ARG VITE_STRAPI_BASE_URL
-ARG VITE_STRAPI_URL
-ARG VITE_STRAPI_TOKEN
+ARG VITE_SUPABASE_URL
+ARG VITE_SUPABASE_PUBLISHABLE_KEY
+ARG VITE_SUPABASE_ANON_KEY
 ARG VITE_QR_BASE_URL
 ARG VITE_APP_VERSION
 ARG VITE_GOOGLE_MAPS_API_KEY
 
 # Ensure environment variables are available during build
-RUN npm run build
+RUN VITE_SUPABASE_URL=$VITE_SUPABASE_URL \
+    VITE_SUPABASE_PUBLISHABLE_KEY=$VITE_SUPABASE_PUBLISHABLE_KEY \
+    VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY \
+    VITE_QR_BASE_URL=$VITE_QR_BASE_URL \
+    VITE_APP_VERSION=$VITE_APP_VERSION \
+    VITE_GOOGLE_MAPS_API_KEY=$VITE_GOOGLE_MAPS_API_KEY \
+    npm run build
 
 # Stage 2: Serve
 FROM nginx:alpine
