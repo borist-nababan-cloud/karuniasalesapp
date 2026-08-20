@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { loginSchema, type LoginFormData } from '@karunia/shared';
+import { loginSchema, type LoginFormData, parseAuthError } from '@karunia/shared';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { Button } from '@/components/ui/button';
@@ -85,7 +85,7 @@ export default function LoginPage() {
                 navigate('/dashboard');
             }
         } catch (err: any) {
-            setError('Terjadi kesalahan pada sistem, silakan hubungi tim IT.');
+            setError(parseAuthError(err));
         } finally {
             setIsLoading(false);
         }

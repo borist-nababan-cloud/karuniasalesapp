@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
-import { executeMandatoryReset } from '@karunia/shared';
+import { executeMandatoryReset, parseAuthError } from '@karunia/shared';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -46,7 +46,7 @@ export default function ResetPasswordMandatoryPage() {
       await supabase.auth.signOut();
       navigate('/login', { replace: true });
     } catch (err: any) {
-      setError(err.message || 'An error occurred during password reset.');
+      setError(parseAuthError(err));
     } finally {
       setLoading(false);
     }

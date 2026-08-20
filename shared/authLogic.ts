@@ -87,3 +87,28 @@ export const executeMandatoryReset = async (
 
     return { success: true };
 };
+
+export const parseAuthError = (err: any): string => {
+    if (!err) return 'Terjadi kesalahan pada sistem, silakan hubungi tim IT.';
+    
+    const status = err?.status;
+    const message = err?.message?.toLowerCase() || '';
+
+    if (status === 429 || message.includes('rate limit')) {
+        return 'Batas permintaan telah terlampaui. Silakan coba beberapa saat lagi.';
+    }
+    
+    if (message.includes('user already registered') || message.includes('already exists')) {
+        return 'Email ini sudah terdaftar. Silakan gunakan email lain atau coba login.';
+    }
+
+    if (message.includes('invalid login credentials')) {
+        return 'Email atau password salah. Silakan coba lagi.';
+    }
+
+    if (message.includes('password should be')) {
+        return 'Format password tidak valid. Pastikan password memenuhi syarat keamanan.';
+    }
+
+    return err.message || 'Terjadi kesalahan pada sistem, silakan hubungi tim IT.';
+};
