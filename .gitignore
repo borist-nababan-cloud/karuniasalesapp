@@ -44,3 +44,11 @@ docs/
 my-cred/
 database-docs/
 .env*
+
+# Sensitive Data
+.env
+.env.*
+*.sql
+*.md
+!README.md
+docs/

@@ -313,26 +313,11 @@ export default function CreateSpkForm() {
 
         setLoading(true);
         try {
-            // 0. Resolve Sales Profile BigInt ID from UUID
-            let salesProfileId = null;
-            if (user?.id) {
-                const { data: profile, error: profileErr } = await supabase
-                    .from('sales_profiles')
-                    .select('id')
-                    .eq('sales_uid', user.id)
-                    .maybeSingle();
-                
-                if (profileErr) {
-                } else if (profile) {
-                    salesProfileId = profile.id;
-                } else {
-                }
-            }
-
             // 1. SPKS Core Table
             const spksPayload = {
                 no_spk: nextSpkNumber,
-                sales_profile_id: salesProfileId,
+                sales_profile_id: user?.id || null,
+                created_by: user?.id || null,
                 tanggal: new Date().toISOString().split('T')[0],
                 nama_customer: formData.namaCustomer || null,
                 pekerjaan_customer: formData.pekerjaanCustomer || '-',
