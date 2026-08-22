@@ -1,1 +1,0 @@
-# karunia-shared-directory
